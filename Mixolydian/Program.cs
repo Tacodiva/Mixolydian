@@ -11,8 +11,8 @@ namespace Mixolydian;
 public static class Program {
     public static void Main(string[] args) {
 
-        // MixoPatcher.Patch("Game/Orignal", "Game.dll", "Game/Mods", "Game/Patched");
-        MixoPatcher.Patch("Celeste/Orignal", "Celeste.exe", "Celeste/Mods", "Celeste/Patched");
+        MixoPatcher.Patch("Game/Orignal", "Game.dll", "Game/Mods", "Game/Patched");
+        // MixoPatcher.Patch("Celeste/Orignal", "Celeste.exe", "Celeste/Mods", "Celeste/Patched");
         
     }
 }

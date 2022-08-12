@@ -6,34 +6,28 @@ public class GameProgram {
     private int Value;
 
     public GameProgram() {
-        Value = 1;
+        Value = 69420;
     }
 
-    public GameProgram(int value) {
-        Value = value + 10;
+    public int Test(string arg) {
+        Console.WriteLine(Concat<string, int>(new List<string>() { "Throw away " }, Value));
+        return Value;
     }
 
-    public void Print() {
-        Console.WriteLine(GetValue());
-    }
-
-    public void Print(string prefix) {
-        Console.WriteLine(prefix + GetValue());
-    }
-
-    public int GetValue() {
-        return ++Value;
+    public B Concat<A, B>(List<A> a, B b) {
+        return b;
     }
 
     ////////////////////////////////////////////////////////
 
     public static void Main(string[] args) {
-        Test(new GameProgram());
-        Test(new GameProgram(59));
+        GameProgram gameProgram = new();
+        Console.WriteLine(gameProgram.Test("Hello"));
+        StaticTest();
     }
 
-    public static void Test(GameProgram program) {
-        program.Print();
-        program.Print("This is the value! ");
+    public static void StaticTest() {
+        Console.WriteLine("Hello from static test!");
     }
+
 }

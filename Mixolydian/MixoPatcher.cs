@@ -68,9 +68,7 @@ public static class MixoPatcher {
             copyCount += CopyDirectory(directory, Path.Combine(outputDirectory, Path.GetFileName(directory)));
         Console.WriteLine($"Copied {copyCount} files");
 
-        Console.WriteLine("\nDone");
-
-        foreach (AssemblyNameReference reference in mainAssembly.MainModule.AssemblyReferences) Console.WriteLine(reference);
+        Console.WriteLine("\nDone\n");
     }
 
     private static int CopyDirectory(string from, string to) {

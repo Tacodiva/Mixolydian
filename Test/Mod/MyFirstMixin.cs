@@ -6,24 +6,41 @@ namespace Mod;
 [ClassMixin(typeof(GameProgram))]
 public class MyFirstMixin {
 
-    [MethodMixin("Print")]
-    public MixinReturn StringMixin(string input) {
-        int variable = 10;
-        variable *= 20;
-        Console.WriteLine("String overload called! " + variable);
+    public static void Test<A, B>(A a, B b) {
+        Console.WriteLine("A = " + a);
+        Console.WriteLine("B = " + b);
+    }
+
+    public static void Test<T>(T arg) {
+        Console.WriteLine("Instance mixin called!");
+        Console.WriteLine(arg);
+    }
+
+    public void Test(string arg) {
+        Test<string>(arg);
+    }
+
+    public void Test(int arg) {
+        Test<int>(arg);
+    }
+
+    [MethodMixin("Concat")]
+    public MixinReturn<T2> ConcatMixin<T1, T2>(List<T1> a, T2 b) {
+        return MixinReturn<T2>.Return(default!);
+    }
+
+    [MethodMixin("Test")]
+    public MixinReturn<int> VoidMixin(string arg) {
+        Test(arg);
+        Test(27);
+        return MixinReturn<int>.Continue();
+    }
+
+    [MethodMixin("StaticTest")]
+    public static MixinReturn GetValueMixin() {
+        Console.WriteLine("Static mixin called!");
+        Test<int, string>(420, "Blaze it");
         return MixinReturn.Continue();
-    }
-
-    [MethodMixin("Print")]
-    public MixinReturn VoidMixin() {
-        Console.WriteLine("Void overload called!");
-        return MixinReturn.Return();
-    }
-
-    [MethodMixin("GetValue")]
-    public MixinReturn<int> GetValueMixin() {
-        Console.WriteLine("Get value called!");
-        return MixinReturn<int>.Return(69);
     }
 
 }
