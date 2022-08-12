@@ -10,16 +10,31 @@ namespace Mixolydian;
 
 public static class MixoCILPatcher {
 
-    public static void Apply(MixoMod mod) {
+    public static void Apply(MixoMod mod, List<AssemblyDefinition> modifiedAssemblies) {
         foreach (MixoTypeMixin typeMixin in mod.TypeMixins) {
             TypeDefinition targetType = typeMixin.Target.Resolve();
 
-            if (targetType.HasGenericParameters) {
-                
-            }
+            if ((targetType.Module.Attributes & ModuleAttributes.ILOnly) == 0)
+                throw new SystemException($"Mixin cannot target {targetType} as it's assembly {targetType.Module.Assembly.Name.Name} contains native code.");
 
-            // TODO
-            Dictionary<string, GenericParameter> typeGenericMap = new();
+            if (!modifiedAssemblies.Contains(targetType.Module.Assembly))
+                modifiedAssemblies.Add(targetType.Module.Assembly);
+
+            Dictionary<string, GenericParameter>? typeGenericMap = null;
+            if (typeMixin.Type.HasGenericParameters) {
+                if (!targetType.HasGenericParameters)
+                    throw new SystemException($"Unexpected generic parameters on mixin " + typeMixin.Type);
+
+                int genericCount = typeMixin.Type.GenericParameters.Count;
+                if (targetType.GenericParameters.Count != genericCount)
+                    throw new SystemException($"Wrong number of generic arguments on {typeMixin}. Found {genericCount}, expected {targetType.GenericParameters.Count}");
+
+                typeGenericMap = new Dictionary<string, GenericParameter>();
+                for (int i = 0; i < genericCount; i++)
+                    typeGenericMap[typeMixin.Type.GenericParameters[i].FullName] = targetType.GenericParameters[i];
+            }
+            if (targetType.HasGenericParameters && !typeMixin.Type.HasGenericParameters)
+                throw new SystemException($"Expected generic parameters on mixin!");
 
             // From old method names to the reference to the method in the target type.
             Dictionary<string, MethodReference> methodMap = new();
@@ -94,7 +109,7 @@ public static class MixoCILPatcher {
 
                     // Look through all the methods to try and find a matching method definition
                     foreach (MethodDefinition possibleTarget in targetPotentialMethods)
-                        if (CompareMethods(method, possibleTarget)) {
+                        if (CompareMethods(method, possibleTarget, typeGenericMap)) {
                             target = possibleTarget;
                             break;
                         }
@@ -188,7 +203,7 @@ public static class MixoCILPatcher {
     /// </summary>
     /// <returns>If method `a` matches method `b`</returns>
     /// TODO Compare generic parameter constraints?
-    private static bool CompareMethods(MethodDefinition mixin, MethodDefinition target) {
+    private static bool CompareMethods(MethodDefinition mixin, MethodDefinition target, Dictionary<string, GenericParameter>? typeGenericMap) {
 
         int paramCount = mixin.Parameters.Count;
         if (target.Parameters.Count != paramCount)
@@ -201,37 +216,42 @@ public static class MixoCILPatcher {
         if (mixin.IsStatic != target.IsStatic)
             return false;
 
-        Dictionary<string, string>? genericParamMap = null;
+        Dictionary<string, GenericParameter>? methodGenericMap = null;
         if (genericParamCount != 0) {
-            genericParamMap = new Dictionary<string, string>();
+            methodGenericMap = new Dictionary<string, GenericParameter>();
             for (int i = 0; i < genericParamCount; i++)
-                genericParamMap[mixin.GenericParameters[i].FullName] = target.GenericParameters[i].FullName;
+                methodGenericMap[mixin.GenericParameters[i].FullName] = target.GenericParameters[i];
         }
 
         bool CompareTypes(TypeReference a, TypeReference b) {
-            Console.WriteLine($"{a} compared with {b}");
-            if (genericParamMap != null) {
-                if (a.IsGenericParameter) {
+            if (methodGenericMap != null || typeGenericMap != null) {
+                if (a.IsGenericParameter && a is GenericParameter aGenericParam) {
                     if (!b.IsGenericParameter)
                         return false;
-                    if (!genericParamMap.TryGetValue(a.FullName, out string? bExpectedName))
+                    Dictionary<string, GenericParameter>? genericMap = aGenericParam.Type switch {
+                        GenericParameterType.Type => typeGenericMap,
+                        GenericParameterType.Method => methodGenericMap,
+                        _ => throw new SystemException($"Unknown generic parameter type {aGenericParam.Type}"),
+                    };
+                    if (genericMap == null) return false;
+                    if (!genericMap.TryGetValue(a.FullName, out GenericParameter? bExpected))
                         return false;
-                    return b.FullName == bExpectedName;
+                    return b.FullName == bExpected.FullName;
                 }
 
-                if (a is IGenericInstance aGeneric) {
-                    if (b is not IGenericInstance bGeneric)
+                if (a is IGenericInstance aGenericInst) {
+                    if (b is not IGenericInstance bGenericInst)
                         return false;
 
                     if (a.Name != b.Name || a.DeclaringType != b.DeclaringType)
                         return false;
 
-                    int genericArgumentCount = aGeneric.GenericArguments.Count;
-                    if (bGeneric.GenericArguments.Count != genericArgumentCount)
+                    int genericArgumentCount = aGenericInst.GenericArguments.Count;
+                    if (bGenericInst.GenericArguments.Count != genericArgumentCount)
                         return false;
 
                     for (int i = 0; i < genericArgumentCount; i++) {
-                        if (!CompareTypes(aGeneric.GenericArguments[i], bGeneric.GenericArguments[i]))
+                        if (!CompareTypes(aGenericInst.GenericArguments[i], bGenericInst.GenericArguments[i]))
                             return false;
                     }
 
@@ -413,7 +433,7 @@ public static class MixoCILPatcher {
     }
 
     /// <returns>
-    /// 'var' is the local variable index, uint.MaxValue if not a local variable instruction
+    /// 'var' is the local variable index, -1 if not a local variable instruction
     /// 'type' is if the instruction type. INVALID if not a local variable instruction.
     /// </returns>
     private static (int var, LocalVariableInstruction type) GetLocalVariableInstruction(Instruction inst) {

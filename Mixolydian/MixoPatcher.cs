@@ -7,6 +7,11 @@ namespace Mixolydian;
 
 public static class MixoPatcher {
 
+    private record AssemblyInfo(string FileName, AssemblyDefinition Assembly) {
+        public AssemblyInfo(AssemblyDefinition assembly) : this(assembly.Name.Name + ".dll", assembly) {
+        }
+    }
+
     public static void Patch(string gameDirectory, string mainAssemblyFile, string modDirectory, string outputDirectory) {
         MixoAssemblyResolver resolver = new(gameDirectory);
 
@@ -21,8 +26,8 @@ public static class MixoPatcher {
         Console.WriteLine("\n===== Loading Game =====");
         string mainAssemblyPath = Path.Combine(gameDirectory, mainAssemblyFile);
         AssemblyDefinition mainAssembly = AssemblyDefinition.ReadAssembly(mainAssemblyPath, new ReaderParameters() { AssemblyResolver = resolver });
-        Dictionary<string, AssemblyDefinition> fileDefMap = new() {
-            { mainAssemblyPath, mainAssembly }
+        List<AssemblyInfo> fileDefMap = new() {
+            { new AssemblyInfo(mainAssemblyPath, mainAssembly) }
         };
         resolver.AddAssembly(mainAssembly);
         Console.WriteLine($"Loaded master assembly {mainAssemblyFile}");
@@ -32,14 +37,20 @@ public static class MixoPatcher {
                 if (File.Exists(dllPath)) {
                     AssemblyDefinition dependAssembly = AssemblyDefinition.ReadAssembly(dllPath, new ReaderParameters() { AssemblyResolver = resolver });
                     resolver.AddAssembly(dependAssembly);
-                    fileDefMap.Add(dllPath, dependAssembly);
+                    fileDefMap.Add(new AssemblyInfo(dllPath, dependAssembly));
                     Console.WriteLine($"Loaded local assembly {dependRef}");
                 }
             }
 
         Console.WriteLine("\n===== Patching =====");
+        List<AssemblyDefinition> modifiedAssemblies = new();
         foreach (MixoMod mod in mods)
-            MixoCILPatcher.Apply(mod);
+            MixoCILPatcher.Apply(mod, modifiedAssemblies);
+        foreach (AssemblyDefinition modifiedAssembly in modifiedAssemblies) {
+            if (fileDefMap.Find(asmInfo => asmInfo.Assembly == modifiedAssembly) == null) {
+                fileDefMap.Add(new AssemblyInfo(modifiedAssembly));
+            }
+        }
 
         Console.WriteLine("\n===== Writing Output =====");
         if (Directory.Exists(outputDirectory)) {
@@ -52,14 +63,15 @@ public static class MixoPatcher {
         }
 
         int copyCount = 0;
+        foreach (AssemblyInfo assemblyInfo in fileDefMap) {
+            assemblyInfo.Assembly.Write(Path.Combine(outputDirectory, Path.GetFileName(assemblyInfo.FileName)));
+            Console.WriteLine($"Wrote assembly {assemblyInfo.Assembly}");
+        }
+
         foreach (string file in Directory.EnumerateFiles(gameDirectory)) {
-            if (fileDefMap.TryGetValue(file, out AssemblyDefinition? def)) {
-                // If we've loaded the assembly, write the potentially modified version
-                def.Write(Path.Combine(outputDirectory, Path.GetFileName(file)));
-                Console.WriteLine($"Wrote assembly {def}");
-            } else {
-                // Otherwise, just copy the file
-                File.Copy(file, Path.Combine(outputDirectory, Path.GetFileName(file)));
+            string outputFile = Path.Combine(outputDirectory, Path.GetFileName(file));
+            if (!File.Exists(outputFile)) {
+                File.Copy(file, outputFile);
                 ++copyCount;
             }
         }
@@ -91,12 +103,12 @@ public static class MixoPatcher {
             _AssemblyCache = new Dictionary<string, AssemblyDefinition>();
             AddSearchDirectory(gameDirectory);
         }
-        
+
         public override AssemblyDefinition Resolve(AssemblyNameReference name, ReaderParameters parameters) {
             if (_AssemblyCache.TryGetValue(name.FullName, out AssemblyDefinition? value))
                 return value;
             Console.WriteLine($"Resolving assembly {name}");
-            return _AssemblyCache[name.FullName] = base.Resolve(name);
+            return _AssemblyCache[name.FullName] = base.Resolve(name, parameters);
         }
 
         public AssemblyDefinition? GetFromCache(string fullName) {

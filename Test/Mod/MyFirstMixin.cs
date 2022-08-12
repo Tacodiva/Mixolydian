@@ -3,6 +3,14 @@ using Mixolydian.Common;
 
 namespace Mod;
 
+[ClassMixin(typeof(GameProgram.TestGenericBox<object>))]
+public class TestGenerixBoxMixin<T> {
+    [MethodMixin("GetValue")]
+    public MixinReturn<T> GetValueMixin() {
+        return MixinReturn<T>.Return(default!);
+    }
+}
+
 [ClassMixin(typeof(GameProgram))]
 public class MyFirstMixin {
 
