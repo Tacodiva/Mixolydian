@@ -18,6 +18,9 @@ public class MixoTypeMixin {
     private readonly List<MixoMethod> _Methods;
     public Collection<MixoMethod> Methods => new(_Methods);
 
+    private readonly List<MixoField> _Fields;
+    public Collection<MixoField> Fields => new(_Fields);
+
     public MixoTypeMixin(TypeDefinition type, TypeReference target) {
         Type = type;
         Target = target;
@@ -57,6 +60,11 @@ public class MixoTypeMixin {
                     continue;
                 _Methods.Add(new MixoMethod(method));
             }
+        }
+
+        _Fields = new List<MixoField>();
+        foreach (FieldDefinition field in type.Fields) {
+            _Fields.Add(new MixoField(field));
         }
     }
 }

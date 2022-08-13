@@ -5,8 +5,12 @@ namespace Mod;
 
 [ClassMixin(typeof(GameProgram.TestGenericBox<object>))]
 public class TestGenerixBoxMixin<T> {
+
+    public static List<List<T>> A;
+
     [MethodMixin("GetValue")]
-    public MixinReturn<T> GetValueMixin() {
+    public MixinReturn<T> GletValueMixin<B>() {
+        Console.WriteLine(TestGenerixBoxMixin<B>.A == null);
         return MixinReturn<T>.Return(default!);
     }
 }
@@ -14,9 +18,14 @@ public class TestGenerixBoxMixin<T> {
 [ClassMixin(typeof(GameProgram))]
 public class MyFirstMixin {
 
+    public static string Hello;
+
+    public int TestField;
+
     public static void Test<A, B>(A a, B b) {
         Console.WriteLine("A = " + a);
         Console.WriteLine("B = " + b);
+        Console.WriteLine("Hello = " + Hello);
     }
 
     public static void Test<T>(T arg) {
@@ -26,6 +35,7 @@ public class MyFirstMixin {
 
     public void Test(string arg) {
         Test<string>(arg);
+        Console.WriteLine("Test Field = " + TestField);
     }
 
     public void Test(int arg) {

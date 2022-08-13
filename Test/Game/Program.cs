@@ -10,8 +10,8 @@ public class GameProgram {
     }
 
     public int Test(string arg) {
-        Console.WriteLine(Concat<string, int>(new List<string>() { "Throw away " }, Value.GetValue()));
-        return Value.GetValue();
+        Console.WriteLine(Concat<string, int>(new List<string>() { "Throw away " }, Value.GetValue<string>()));
+        return Value.GetValue<string>();
     }
 
     public B Concat<A, B>(List<A> a, B b) {
@@ -38,7 +38,7 @@ public class GameProgram {
             Value = value;
         }
 
-        public T GetValue() {
+        public T GetValue<X>() {
             return Value;
         }
     }
