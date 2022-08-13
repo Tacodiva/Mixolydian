@@ -1,7 +1,7 @@
 using System;
 
 namespace Mixolydian.Common {
-    [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = true)]
+    [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
     public sealed class MethodMixinAttribute : Attribute {
 
         // TODO Priority?

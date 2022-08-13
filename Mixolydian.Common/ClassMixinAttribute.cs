@@ -2,7 +2,7 @@
 
 namespace Mixolydian.Common {
 
-    [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
+    [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
     public sealed class ClassMixinAttribute : Attribute {
        
         public int Priority { get; set; }

@@ -6,17 +6,21 @@ namespace Mod;
 [ClassMixin(typeof(GameProgram.TestGenericBox<object>))]
 public class TestGenerixBoxMixin<T> {
 
-    public static List<List<T>> A;
+    [MixinField("Value")]
+    public T Value;
 
     [MethodMixin("GetValue")]
     public MixinReturn<T> GletValueMixin<B>() {
-        Console.WriteLine(TestGenerixBoxMixin<B>.A == null);
-        return MixinReturn<T>.Return(default!);
+        Console.WriteLine("Getting value " + Value);
+        return MixinReturn<T>.Continue();
     }
 }
 
 [ClassMixin(typeof(GameProgram))]
 public class MyFirstMixin {
+
+    [MixinField("Value")]
+    private GameProgram.TestGenericBox<int> Value;
 
     public static string Hello;
 
@@ -34,6 +38,7 @@ public class MyFirstMixin {
     }
 
     public void Test(string arg) {
+        Value.Value = 7729;
         Test<string>(arg);
         Console.WriteLine("Test Field = " + TestField);
     }

@@ -41,7 +41,21 @@ public static class MixoCILPatcher {
             MethodMap methodMap = new();
             FieldMap fieldMap = new();
 
-            { // Copy the non-redirect fields over
+            { // Add accessor fields to the field map
+                foreach (MixoFieldAccessor accessor in typeMixin.FieldAccessors) {
+
+                    FieldDefinition? targetField = targetType.Fields.FirstOrDefault(field => field.Name == accessor.TargetFieldName);
+                    if (targetField is null)
+                        throw new SystemException($"Could not find target field {accessor.TargetFieldName} on {targetType}");
+
+                    TypeReference mappedFieldType = ConvertTypeReference(accessor.Field.FieldType, targetType, null, typeGenericMap);
+                    if (mappedFieldType.FullName != targetField.FieldType.FullName)
+                        throw new SystemException($"Field {accessor.Field.FullName} has an invalid type {accessor.Field.FieldType}, expected {targetField.FieldType}");
+                    fieldMap[accessor.Field.Name] = targetField;
+                }
+            }
+
+            { // Copy the non-accessor fields over
                 foreach (MixoField field in typeMixin.Fields) {
                     // Find a field name that's avaliable
                     string fieldName = field.Field.Name;
@@ -476,7 +490,7 @@ public static class MixoCILPatcher {
             }
         }
 
-        if (fieldMap.TryGetValue(field.Name, out FieldDefinition? outField)) {
+        if (CompareTypesNoGenerics(field.DeclaringType, source) && fieldMap.TryGetValue(field.Name, out FieldDefinition? outField)) {
             return outField;
         }
 

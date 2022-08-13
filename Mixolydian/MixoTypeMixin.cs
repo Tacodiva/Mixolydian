@@ -14,12 +14,13 @@ public class MixoTypeMixin {
 
     private readonly List<MixoMethodMixin> _MethodMixins;
     public Collection<MixoMethodMixin> MethodMixins => new(_MethodMixins);
-
     private readonly List<MixoMethod> _Methods;
     public Collection<MixoMethod> Methods => new(_Methods);
 
     private readonly List<MixoField> _Fields;
     public Collection<MixoField> Fields => new(_Fields);
+    private readonly List<MixoFieldAccessor> _FieldAccessors;
+    public Collection<MixoFieldAccessor> FieldAccessors => new(_FieldAccessors);
 
     public MixoTypeMixin(TypeDefinition type, TypeReference target) {
         Type = type;
@@ -62,9 +63,26 @@ public class MixoTypeMixin {
             }
         }
 
+        _FieldAccessors = new List<MixoFieldAccessor>();
         _Fields = new List<MixoField>();
         foreach (FieldDefinition field in type.Fields) {
-            _Fields.Add(new MixoField(field));
+
+            bool isAccessor = false;
+            if (field.HasCustomAttributes) {
+                foreach (CustomAttribute fieldAttribute in field.CustomAttributes) {
+                    if (fieldAttribute.AttributeType.FullName == typeof(MixinFieldAttribute).FullName) {
+                        CustomAttributeArgument[] methodAttribArgs = fieldAttribute.ConstructorArguments.ToArray();
+                        if (methodAttribArgs.Length != 1 || methodAttribArgs[0].Value is not string fieldTargetName)
+                            throw new SystemException($"Field {field.FullName} is using an invalid constructor for {nameof(MixinFieldAttribute)}.");
+                        _FieldAccessors.Add(new MixoFieldAccessor(field, fieldTargetName));
+                        isAccessor = true;
+                        break; ;
+                    }
+                }
+            }
+
+            if (!isAccessor)
+                _Fields.Add(new MixoField(field));
         }
     }
 }

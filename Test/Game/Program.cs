@@ -30,15 +30,15 @@ public class GameProgram {
         Console.WriteLine("Hello from static test!");
     }
 
-    public class TestGenericBox<T> {
+    public class TestGenericBox<TObject> {
 
-        public T Value;
+        public TObject Value;
 
-        public TestGenericBox(T value) {
+        public TestGenericBox(TObject value) {
             Value = value;
         }
 
-        public T GetValue<X>() {
+        public TObject GetValue<X>() {
             return Value;
         }
     }
