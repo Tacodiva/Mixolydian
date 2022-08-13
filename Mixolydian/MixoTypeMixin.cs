@@ -76,7 +76,13 @@ public class MixoTypeMixin {
                             throw new SystemException($"Field {field.FullName} is using an invalid constructor for {nameof(MixinFieldAttribute)}.");
                         _FieldAccessors.Add(new MixoFieldAccessor(field, fieldTargetName));
                         isAccessor = true;
-                        break; ;
+                        break;
+                    } else if (fieldAttribute.AttributeType.FullName == typeof(MixinThisAttribute).FullName) {
+                        if (fieldAttribute.HasConstructorArguments)
+                            throw new SystemException($"Field {field.FullName} is using an invalid constructor for {nameof(MixinThisAttribute)}.");
+                        _FieldAccessors.Add(new MixoFieldAccessor(field, MixoFieldAccessor.ThisTargetName));
+                        isAccessor = true;
+                        break;
                     }
                 }
             }

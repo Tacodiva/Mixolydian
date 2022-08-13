@@ -41,6 +41,10 @@ public class GameProgram {
         public TObject GetValue<X>() {
             return Value;
         }
+
+        public void UncalledMethod(string message) {
+            Console.WriteLine($"Got the secret message '{message}'.");
+        }
     }
 
 }

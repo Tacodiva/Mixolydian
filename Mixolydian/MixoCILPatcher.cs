@@ -4,7 +4,7 @@ using System.Linq;
 using Mixolydian.Common;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using FieldMap = System.Collections.Generic.Dictionary<string, Mono.Cecil.FieldDefinition>;
+using FieldMap = System.Collections.Generic.Dictionary<string, Mono.Cecil.FieldDefinition?>;
 using GenericMap = System.Collections.Generic.Dictionary<string, Mono.Cecil.GenericParameter>;
 using MethodMap = System.Collections.Generic.Dictionary<string, Mono.Cecil.MethodDefinition>;
 
@@ -43,15 +43,50 @@ public static class MixoCILPatcher {
 
             { // Add accessor fields to the field map
                 foreach (MixoFieldAccessor accessor in typeMixin.FieldAccessors) {
+                    if (accessor.IsThis()) {
+                        if (accessor.Field.IsStatic)
+                            throw new SystemException($"'MixinThis' fields cannot be static!");
 
-                    FieldDefinition? targetField = targetType.Fields.FirstOrDefault(field => field.Name == accessor.TargetFieldName);
-                    if (targetField is null)
-                        throw new SystemException($"Could not find target field {accessor.TargetFieldName} on {targetType}");
+                        if (!accessor.Field.IsInitOnly)
+                            throw new SystemException($"'MixinThis' fields must be readonly!");
 
-                    TypeReference mappedFieldType = ConvertTypeReference(accessor.Field.FieldType, targetType, null, typeGenericMap);
-                    if (mappedFieldType.FullName != targetField.FieldType.FullName)
-                        throw new SystemException($"Field {accessor.Field.FullName} has an invalid type {accessor.Field.FieldType}, expected {targetField.FieldType}");
-                    fieldMap[accessor.Field.Name] = targetField;
+                        if (targetType.HasGenericParameters) {
+                            if (accessor.Field.FieldType is not IGenericInstance fieldType)
+                                throw new SystemException($"'MixinThis' fields must have the same generic parameters as their target type!");
+
+                            int genericCount = fieldType.GenericArguments.Count;
+                            if (targetType.GenericParameters.Count != genericCount || typeGenericMap == null)
+                                throw new SystemException($"'MixinThis' fields must have the same generic parameters as their target type!");
+
+                            for (int i = 0; i < genericCount; i++) {
+                                if (!typeGenericMap.TryGetValue(fieldType.GenericArguments[i].FullName, out GenericParameter? mappedGeneric))
+                                    throw new SystemException($"'MixinThis' fields must have the same generic parameters as their target type!");
+                                if (mappedGeneric.FullName != targetType.GenericParameters[i].FullName)
+                                    throw new SystemException($"'MixinThis' fields must have the same generic parameters as their target type!");
+                            }
+                        } else {
+                            if (accessor.Field.FieldType.FullName != targetType.FullName)
+                                throw new SystemException($"Field {accessor.Field.FullName} has an invalid type {accessor.Field.FieldType}, expected {targetType}");
+                        }
+
+                        // Null entries in this map mean push 'this' onto the stack instead of some actual field. 
+                        //   See 'ConvertInstruction' for how *this* is implimented (pun intended).
+                        fieldMap[accessor.Field.Name] = null;
+                    } else {
+                        FieldDefinition? targetField = targetType.Fields.FirstOrDefault(field => field.Name == accessor.TargetFieldName);
+                        if (targetField is null)
+                            throw new SystemException($"Could not find target field {accessor.TargetFieldName} on {targetType}");
+
+                        if (!targetField.IsStatic && accessor.Field.IsStatic)
+                            throw new SystemException($"Accessor {accessor.Field} is static, but target field {targetField} is not static");
+                        if (targetField.IsStatic && !accessor.Field.IsStatic)
+                            throw new SystemException($"Accessor {accessor.Field} is not static, but target field {targetField} is static");
+
+                        TypeReference mappedFieldType = ConvertTypeReference(accessor.Field.FieldType, targetType, null, typeGenericMap);
+                        if (mappedFieldType.FullName != targetField.FieldType.FullName)
+                            throw new SystemException($"Field {accessor.Field.FullName} has an invalid type {accessor.Field.FieldType}, expected {targetField.FieldType}");
+                        fieldMap[accessor.Field.Name] = targetField;
+                    }
                 }
             }
 
@@ -216,7 +251,10 @@ public static class MixoCILPatcher {
                             (int localVariable, LocalVariableInstruction localVariableInstruction) = GetLocalVariableInstruction(inst);
                             if (localVariableInstruction != LocalVariableInstruction.INVALID) {
                                 VariableDefinition newVariableDef = newMethodVariables[localVariable];
-                                inst = CreateLocalVariableInstruction(newVariableDef, localVariableInstruction);
+                                Instruction replace = CreateLocalVariableInstruction(newVariableDef, localVariableInstruction);
+                                // We can't just `inst = reaplce` because it may break branching instructions that point to inst
+                                inst.OpCode = replace.OpCode;
+                                inst.Operand = replace.Operand;
                             }
                         }
 
@@ -333,7 +371,18 @@ public static class MixoCILPatcher {
         } else if (inst.Operand is TypeReference operandType) {
             inst.Operand = ConvertTypeReference(operandType, target.DeclaringType, methodGenericMap, typeGenericMap);
         } else if (inst.Operand is FieldReference operandField) {
-            inst.Operand = ConvertFieldReference(operandField, target.DeclaringType, source.DeclaringType, fieldMap, methodGenericMap, typeGenericMap);
+            FieldReference? fieldReference = ConvertFieldReference(operandField, target.DeclaringType, source.DeclaringType, fieldMap, methodGenericMap, typeGenericMap);
+            if (fieldReference == null) { // If the field reference is null, we should actually refer to 'this'
+                // We can only load 'this', not set it
+                if (inst.OpCode != OpCodes.Ldfld && inst.OpCode != OpCodes.Ldflda)
+                    throw new SystemException("Cannot set a field with the MixinThis attribute!");
+
+                // If we are loading an instance field, 'this' must already be the top of the stack,
+                //  so to load 'this' instead of the field, we just do nothing.
+                inst.OpCode = OpCodes.Nop;
+                inst.Operand = null;
+            } else
+                inst.Operand = fieldReference;
         }
         return inst;
     }
@@ -467,8 +516,8 @@ public static class MixoCILPatcher {
     /// <param name="fieldMap">A map of field names to field definitions in the target. Used for injected fields and redirected fields</param>
     /// <param name="methodGenericMap">A map that converts from the mixins method's generics to the target method's generics</param>
     /// <param name="typeGenericMap">A map the converts from the mixins declairing type's generic to the targets type's generics.</param>
-    /// <returns></returns>
-    private static FieldReference ConvertFieldReference(FieldReference field, TypeDefinition target, TypeDefinition source, FieldMap fieldMap, GenericMap? methodGenericMap, GenericMap? typeGenericMap) {
+    /// <returns>The field reference. Null if the field should refer to `this`</returns>
+    private static FieldReference? ConvertFieldReference(FieldReference field, TypeDefinition target, TypeDefinition source, FieldMap fieldMap, GenericMap? methodGenericMap, GenericMap? typeGenericMap) {
 
         List<TypeReference>? typeGenericArguments = null;
         List<TypeReference>? declairingTypeGenericArguments = null;

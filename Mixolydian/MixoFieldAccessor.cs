@@ -8,6 +8,9 @@ namespace Mixolydian;
 /// </summary>
 public class MixoFieldAccessor {
 
+    // Special value of TargetFieldName for MixinThis fields
+    public const string ThisTargetName = "<this>";
+
     public readonly FieldDefinition Field;
 
     public readonly string TargetFieldName;
@@ -15,5 +18,9 @@ public class MixoFieldAccessor {
     public MixoFieldAccessor(FieldDefinition field, string targetName) {
         Field = field;
         TargetFieldName = targetName;
+    }
+
+    public bool IsThis() {
+        return TargetFieldName == ThisTargetName;
     }
 }

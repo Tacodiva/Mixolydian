@@ -6,18 +6,24 @@ namespace Mod;
 [ClassMixin(typeof(GameProgram.TestGenericBox<object>))]
 public class TestGenerixBoxMixin<T> {
 
+    [MixinThis]
+    public readonly GameProgram.TestGenericBox<T> This;
+
     [MixinField("Value")]
     public T Value;
 
     [MethodMixin("GetValue")]
     public MixinReturn<T> GletValueMixin<B>() {
-        Console.WriteLine("Getting value " + Value);
+        Console.WriteLine("Getting value " + This.Value);
         return MixinReturn<T>.Continue();
     }
 }
 
 [ClassMixin(typeof(GameProgram))]
 public class MyFirstMixin {
+
+    [MixinThis]
+    public readonly GameProgram This;
 
     [MixinField("Value")]
     private GameProgram.TestGenericBox<int> Value;
