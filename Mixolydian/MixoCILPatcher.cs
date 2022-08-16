@@ -107,6 +107,28 @@ public static class MixoCILPatcher {
                 }
             }
 
+            { // Resolve the method accessors
+                foreach (MixoMethodAccessor methodAccessor in typeMixin.MethodAccessors) {
+
+                    MethodDefinition[] targetPotentialMethods = targetType.Methods.Where(method => method.Name == methodAccessor.TargetMethodName).ToArray();
+                    if (targetPotentialMethods.Length == 0)
+                        throw new SystemException($"No methods named {methodAccessor.TargetMethodName} in {methodAccessor.Method}.");
+
+                    MethodDefinition? target = null;
+                    foreach (MethodDefinition possibleTarget in targetPotentialMethods) {
+                        if (MixinCompatiableWith(methodAccessor.Method, possibleTarget, typeGenericMap, false)) {
+                            target = possibleTarget;
+                            break;
+                        }
+                    }
+
+                    if (target == null)
+                        throw new SystemException($"Could not find matching method named {methodAccessor.TargetMethodName} in {targetType}.");
+
+                    methodMap[MethodHash(methodAccessor.Method)] = target;
+                }
+            }
+
             { // Copy the non-mixin methods over!
                 // The method definitions must be all created before the method instructions are copied
                 //  as we may need to find other methods new definitions
@@ -175,11 +197,12 @@ public static class MixoCILPatcher {
                         throw new SystemException($"No method named {methodMixin.TargetName} in {targetType}.");
 
                     // Look through all the methods to try and find a matching method definition
-                    foreach (MethodDefinition possibleTarget in targetPotentialMethods)
-                        if (MixinCompatiableWith(method, possibleTarget, typeGenericMap)) {
+                    foreach (MethodDefinition possibleTarget in targetPotentialMethods) {
+                        if (MixinCompatiableWith(method, possibleTarget, typeGenericMap, true)) {
                             target = possibleTarget;
                             break;
                         }
+                    }
 
                     if (target == null)
                         throw new SystemException($"Could not find matching method named {methodMixin.TargetName} in {targetType}.");
@@ -190,8 +213,6 @@ public static class MixoCILPatcher {
                         for (int i = 0; i < method.GenericParameters.Count; i++)
                             methodGenericMap[method.GenericParameters[i].FullName] = target.GenericParameters[i];
                     }
-
-                    Console.WriteLine($"Resolved {method.DeclaringType}::{methodMixin.Method.Name}");
                 }
 
                 { // Apply the mixin!
@@ -263,17 +284,22 @@ public static class MixoCILPatcher {
                     Console.WriteLine($"Injected {newMethodVariables.Length} variables, {method.Body.Instructions.Count} instructions into {target}");
                 }
             }
+
+            // Remove the mixin from the mod's assembly
+            typeMixin.Type.Module.Types.Remove(typeMixin.Type);
         }
     }
 
     /// <summary>
     /// Compares two method definitions, mixin and target without considering the names of the method, 
     /// parameters or generics. 'Mixin' must have it's return type wrapped in MixinReturn.
+    /// 
+    /// `expectMixinReturn` is true if the return value of 'mixin' should be wrapped in a MixinReturn
     /// IE `MixinReturn<A> TestOne<A, B>(B one, A two, List<B> three)` == `X TestTwo<X, Y>(Y foo, X bar, List<Y> baz)`
     /// </summary>
     /// <returns>If method `a` matches method `b`</returns>
     /// TODO Compare generic parameter constraints?
-    private static bool MixinCompatiableWith(MethodDefinition mixin, MethodDefinition target, GenericMap? typeGenericMap) {
+    private static bool MixinCompatiableWith(MethodDefinition mixin, MethodDefinition target, GenericMap? typeGenericMap, bool expectMixinReturn) {
 
         int paramCount = mixin.Parameters.Count;
         if (target.Parameters.Count != paramCount)
@@ -331,17 +357,22 @@ public static class MixoCILPatcher {
             return a.FullName == b.FullName;
         }
 
-        if (mixin.ReturnType.IsGenericInstance && mixin.ReturnType is IGenericInstance mixinGeneric) {
-            if (mixin.ReturnType.Name != typeof(MixinReturn<object>).Name)
-                return false;
-            if (mixinGeneric.GenericArguments.Count != 1)
-                return false;
-            if (!CompareTypes(mixinGeneric.GenericArguments[0], target.ReturnType))
-                return false;
+        if (expectMixinReturn) {
+            if (mixin.ReturnType.IsGenericInstance && mixin.ReturnType is IGenericInstance mixinGeneric) {
+                if (mixin.ReturnType.Name != typeof(MixinReturn<object>).Name)
+                    return false;
+                if (mixinGeneric.GenericArguments.Count != 1)
+                    return false;
+                if (!CompareTypes(mixinGeneric.GenericArguments[0], target.ReturnType))
+                    return false;
+            } else {
+                if (mixin.ReturnType.FullName != typeof(MixinReturn).FullName)
+                    return false;
+                if (target.ReturnType.FullName != typeof(void).FullName)
+                    return false;
+            }
         } else {
-            if (mixin.ReturnType.FullName != typeof(MixinReturn).FullName)
-                return false;
-            if (target.ReturnType.FullName != typeof(void).FullName)
+            if (!CompareTypes(mixin.ReturnType, target.ReturnType))
                 return false;
         }
 
@@ -354,20 +385,8 @@ public static class MixoCILPatcher {
 
     // TODO Document
     private static Instruction ConvertInstruction(Instruction inst, MethodDefinition target, MethodDefinition source, MethodMap methodMap, FieldMap fieldMap, GenericMap? methodGenericMap, GenericMap? typeGenericMap) {
-        if (inst.OpCode == OpCodes.Call && inst.Operand is MethodReference callOperand) {
-            if (methodMap.TryGetValue(MethodHash(callOperand), out MethodDefinition? newRef)) {
-                if (callOperand.IsGenericInstance && callOperand is IGenericInstance callOperandGeneric) {
-                    GenericInstanceMethod newOp = new(newRef);
-                    foreach (TypeReference p in callOperandGeneric.GenericArguments)
-                        newOp.GenericArguments.Add(p);
-                    inst.Operand = newOp;
-                } else {
-                    inst.Operand = newRef;
-                }
-            }
-        }
         if (inst.Operand is MethodReference operandMethod) {
-            inst.Operand = ConvertMethodReference(operandMethod, target.DeclaringType, methodGenericMap, typeGenericMap);
+            inst.Operand = ConvertMethodReference(operandMethod, target.DeclaringType, methodMap, methodGenericMap, typeGenericMap);
         } else if (inst.Operand is TypeReference operandType) {
             inst.Operand = ConvertTypeReference(operandType, target.DeclaringType, methodGenericMap, typeGenericMap);
         } else if (inst.Operand is FieldReference operandField) {
@@ -452,7 +471,46 @@ public static class MixoCILPatcher {
     /// <param name="methodGenericMap">A map that converts from the mixins method's generics to the target method's generics</param>
     /// <param name="typeGenericMap">A map the converts from the mixins declairing type's generic to the targets type's generics.</param>
     /// <returns></returns>
-    private static MethodReference ConvertMethodReference(MethodReference method, TypeDefinition target, GenericMap? methodGenericMap, GenericMap? typeGenericMap) {
+    private static MethodReference ConvertMethodReference(MethodReference method, TypeDefinition target, MethodMap methodMap, GenericMap? methodGenericMap, GenericMap? typeGenericMap) {
+
+        if (methodMap.TryGetValue(MethodHash(method), out MethodDefinition? mappedDefinition)) {
+            // This is for methods that need to be redirected.
+            //  For them, we need to keep most of the method definition properties the same, but map all
+            //   of the generic parameters. 
+            MethodReference outRef = new(mappedDefinition.Name, mappedDefinition.ReturnType) {
+                HasThis = mappedDefinition.HasThis,
+                ExplicitThis = mappedDefinition.ExplicitThis,
+                CallingConvention = mappedDefinition.CallingConvention,
+            };
+
+            TypeReference declairingType = mappedDefinition.DeclaringType;
+            if (method.DeclaringType.IsGenericInstance && method.DeclaringType is IGenericInstance declaringTypeGeneric) {
+                GenericInstanceType type = new(mappedDefinition.DeclaringType);
+                foreach (TypeReference generic in declaringTypeGeneric.GenericArguments) {
+                    type.GenericArguments.Add(ConvertTypeReference(generic, target, methodGenericMap, typeGenericMap));
+                }
+                declairingType = type;
+            }
+            outRef.DeclaringType = declairingType;
+
+            foreach (ParameterDefinition parameter in mappedDefinition.Parameters)
+                outRef.Parameters.Add(new ParameterDefinition(parameter.Name, parameter.Attributes, parameter.ParameterType));
+
+            foreach (GenericParameter parameter in mappedDefinition.GenericParameters)
+                outRef.GenericParameters.Add(new GenericParameter(parameter.Name, parameter.Owner));
+
+            if (method.IsGenericInstance && method is GenericInstanceMethod methodIst) {
+                GenericInstanceMethod outRefGeneric = new(outRef);
+                foreach (TypeReference reference in methodIst.GenericArguments) {
+                    outRefGeneric.GenericArguments.Add(
+                        ConvertTypeReference(reference, target, methodGenericMap, typeGenericMap)
+                    );
+                }
+                outRef = outRefGeneric;
+            }
+
+            return outRef;
+        }
 
         List<TypeReference>? typeGenericArguments = null;
         List<TypeReference>? methodGenericArguments = null;
@@ -620,9 +678,16 @@ public static class MixoCILPatcher {
 
     private static string MethodHash(MethodReference method) {
         int genericCount;
-        if (method.IsGenericInstance && method is IGenericInstance inst) genericCount = inst.GenericArguments.Count;
+        if (method.IsGenericInstance && method is IGenericInstance inst)
+            genericCount = inst.GenericArguments.Count;
         else genericCount = method.GenericParameters.Count;
-        return method.DeclaringType.FullName + "$$" + method.Name + "$$" + string.Concat(method.Parameters.Select(param => param.ParameterType)) + "$$" + genericCount;
+        int declaringTypeGenericCount;
+        if (method.DeclaringType.IsGenericInstance && method.DeclaringType is IGenericInstance genericInst)
+            declaringTypeGenericCount = genericInst.GenericArguments.Count;
+        else declaringTypeGenericCount = method.DeclaringType.GenericParameters.Count;
+        return method.DeclaringType.Namespace + "$$" + method.DeclaringType.Name + "$$" + declaringTypeGenericCount
+            + "$$" + method.Name + "$$" + string.Concat(method.Parameters.Select(param => param.ParameterType))
+            + "$$" + genericCount;
     }
 
     private static bool CompareTypesNoGenerics(TypeReference a, TypeReference b) {

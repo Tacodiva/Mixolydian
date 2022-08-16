@@ -30,7 +30,7 @@ public class GameProgram {
         Console.WriteLine("Hello from static test!");
     }
 
-    public class TestGenericBox<TObject> {
+    public sealed class TestGenericBox<TObject> {
 
         public TObject Value;
 
@@ -39,11 +39,16 @@ public class GameProgram {
         }
 
         public TObject GetValue<X>() {
+            // UncalledMethod("Internal test");
             return Value;
         }
 
         public void UncalledMethod(string message) {
             Console.WriteLine($"Got the secret message '{message}'.");
+        }
+
+        private void SecretUncalledMethod(string messageII) {
+            Console.WriteLine($"Got the very secret message '{messageII}'.");
         }
     }
 

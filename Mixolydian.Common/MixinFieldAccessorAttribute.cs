@@ -2,11 +2,11 @@ using System;
 
 namespace Mixolydian.Common {
     [AttributeUsage(AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
-    public sealed class MixinFieldAttribute : Attribute {
+    public sealed class MixinFieldAccessorAttribute : Attribute {
 
         public readonly string Target;
 
-        public MixinFieldAttribute(string target) {
+        public MixinFieldAccessorAttribute(string target) {
             Target = target;
         }
     }

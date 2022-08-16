@@ -9,12 +9,17 @@ public class TestGenerixBoxMixin<T> {
     [MixinThis]
     public readonly GameProgram.TestGenericBox<T> This;
 
-    [MixinField("Value")]
+    [MixinFieldAccessor("Value")]
     public T Value;
+
+    [MixinMethodAccessor("SecretUncalledMethod")]
+    public extern void SecretUncalledMethod(string value);
 
     [MethodMixin("GetValue")]
     public MixinReturn<T> GletValueMixin<B>() {
         Console.WriteLine("Getting value " + This.Value);
+        This.UncalledMethod("Hello, Mixolydian!");
+        SecretUncalledMethod("Secret hello mixolydian shhh...");
         return MixinReturn<T>.Continue();
     }
 }
@@ -25,7 +30,7 @@ public class MyFirstMixin {
     [MixinThis]
     public readonly GameProgram This;
 
-    [MixinField("Value")]
+    [MixinFieldAccessor("Value")]
     private GameProgram.TestGenericBox<int> Value;
 
     public static string Hello;

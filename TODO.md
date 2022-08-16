@@ -1,0 +1,11 @@
+- Add method accessors to mixins
+- Constructor injection
+- Other special method injection (operators, destructors, etc.)
+- Check if generic constraints on types and methods match
+- Other mixin location (Head, tail and return?)
+- Mixin priority
+- Make it so other types in the mods assemblies can be accessed at runtime
+- Add blank constructors to attributes that use the name of the method / field as their parameter.
+- Work out in-assembly resources
+- Unit tests!
+- Debug symbol preservation

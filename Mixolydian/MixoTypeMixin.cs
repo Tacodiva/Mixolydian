@@ -14,6 +14,8 @@ public class MixoTypeMixin {
 
     private readonly List<MixoMethodMixin> _MethodMixins;
     public Collection<MixoMethodMixin> MethodMixins => new(_MethodMixins);
+    private readonly List<MixoMethodAccessor> _MethodAccessors;
+    public Collection<MixoMethodAccessor> MethodAccessors => new(_MethodAccessors);
     private readonly List<MixoMethod> _Methods;
     public Collection<MixoMethod> Methods => new(_Methods);
 
@@ -27,10 +29,11 @@ public class MixoTypeMixin {
         Target = target;
 
         _MethodMixins = new List<MixoMethodMixin>();
+        _MethodAccessors = new List<MixoMethodAccessor>();
         _Methods = new List<MixoMethod>();
         foreach (MethodDefinition method in type.Methods) {
 
-            bool isMixinMethod = false;
+            bool isSpecialMethod = false;
             // Search for the MethodMixin attribute.
             {
                 if (method.HasCustomAttributes)
@@ -40,6 +43,7 @@ public class MixoTypeMixin {
                             if (methodAttribArgs.Length != 1 || methodAttribArgs[0].Value is not string methodTargetName)
                                 throw new SystemException($"Method {method.FullName} is using an invalid constructor for {nameof(MethodMixinAttribute)}.");
 
+                            // TODO Move this into the CIL patcher?
                             TypeReference[] methodTargetParams = new TypeReference[method.Parameters.Count];
                             for (int i = 0; i < method.Parameters.Count; i++)
                                 methodTargetParams[i] = method.Parameters[i].ParameterType;
@@ -50,13 +54,20 @@ public class MixoTypeMixin {
 
                             _MethodMixins.Add(new MixoMethodMixin(method, methodTargetName, methodTargetParams, methodTargetReturn));
 
-                            isMixinMethod = true;
+                            isSpecialMethod = true;
+                            break;
+                        } else if (methodAttribute.AttributeType.FullName == typeof(MixinMethodAccessorAttribute).FullName) {
+                            CustomAttributeArgument[] methodAttribArgs = methodAttribute.ConstructorArguments.ToArray();
+                            if (methodAttribArgs.Length != 1 || methodAttribArgs[0].Value is not string methodTargetName)
+                                throw new SystemException($"Method {method.FullName} is using an invalid constructor for {nameof(MixinMethodAccessorAttribute)}.");
+                            _MethodAccessors.Add(new MixoMethodAccessor(method, methodTargetName));
+                            isSpecialMethod = true;
                             break;
                         }
                     }
             }
 
-            if (!isMixinMethod) {
+            if (!isSpecialMethod) {
                 if (method.IsConstructor)
                     continue;
                 _Methods.Add(new MixoMethod(method));
@@ -67,27 +78,27 @@ public class MixoTypeMixin {
         _Fields = new List<MixoField>();
         foreach (FieldDefinition field in type.Fields) {
 
-            bool isAccessor = false;
+            bool isSpecialField = false;
             if (field.HasCustomAttributes) {
                 foreach (CustomAttribute fieldAttribute in field.CustomAttributes) {
-                    if (fieldAttribute.AttributeType.FullName == typeof(MixinFieldAttribute).FullName) {
+                    if (fieldAttribute.AttributeType.FullName == typeof(MixinFieldAccessorAttribute).FullName) {
                         CustomAttributeArgument[] methodAttribArgs = fieldAttribute.ConstructorArguments.ToArray();
                         if (methodAttribArgs.Length != 1 || methodAttribArgs[0].Value is not string fieldTargetName)
-                            throw new SystemException($"Field {field.FullName} is using an invalid constructor for {nameof(MixinFieldAttribute)}.");
+                            throw new SystemException($"Field {field.FullName} is using an invalid constructor for {nameof(MixinFieldAccessorAttribute)}.");
                         _FieldAccessors.Add(new MixoFieldAccessor(field, fieldTargetName));
-                        isAccessor = true;
+                        isSpecialField = true;
                         break;
                     } else if (fieldAttribute.AttributeType.FullName == typeof(MixinThisAttribute).FullName) {
                         if (fieldAttribute.HasConstructorArguments)
                             throw new SystemException($"Field {field.FullName} is using an invalid constructor for {nameof(MixinThisAttribute)}.");
                         _FieldAccessors.Add(new MixoFieldAccessor(field, MixoFieldAccessor.ThisTargetName));
-                        isAccessor = true;
+                        isSpecialField = true;
                         break;
                     }
                 }
             }
 
-            if (!isAccessor)
+            if (!isSpecialField)
                 _Fields.Add(new MixoField(field));
         }
     }
