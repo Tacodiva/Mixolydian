@@ -5,8 +5,16 @@ public class GameProgram {
 
     private TestGenericBox<int> Value;
 
+    public GameProgram(string abcde) : this() {
+        
+    }
+
     public GameProgram() {
         Value = new TestGenericBox<int>(69420);
+    }
+
+    public GameProgram(int a) {
+        Value = new TestGenericBox<int>(a);        
     }
 
     public int Test(string arg) {
@@ -22,6 +30,10 @@ public class GameProgram {
 
     public static void Main(string[] args) {
         GameProgram gameProgram = new();
+        Console.WriteLine(gameProgram.Test("Hello"));
+        gameProgram = new(7729);
+        Console.WriteLine(gameProgram.Test("Hello"));
+        gameProgram = new("Hello, World!");
         Console.WriteLine(gameProgram.Test("Hello"));
         StaticTest();
     }

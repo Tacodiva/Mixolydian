@@ -35,6 +35,9 @@ public class MyFirstMixin {
 
     public static string Hello;
 
+    public string InitalizedString = "Fuck You";
+    public object AHh = new object();
+
     public int TestField;
 
     public static void Test<A, B>(A a, B b) {
@@ -52,6 +55,8 @@ public class MyFirstMixin {
         Value.Value = 7729;
         Test<string>(arg);
         Console.WriteLine("Test Field = " + TestField);
+        Console.WriteLine("Initalized string = " + InitalizedString);
+        Console.WriteLine("AHh = " + AHh);
     }
 
     public void Test(int arg) {
@@ -75,6 +80,11 @@ public class MyFirstMixin {
         Console.WriteLine("Static mixin called!");
         Test<int, string>(420, "Blaze it");
         return MixinReturn.Continue();
+    }
+
+    [ConstructorMixin]
+    public void TestConstructorMixin() {
+        Console.WriteLine("Injected into the constructor >:)");
     }
 
 }

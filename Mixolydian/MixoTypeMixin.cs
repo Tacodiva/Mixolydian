@@ -18,19 +18,27 @@ public class MixoTypeMixin {
     public Collection<MixoMethodAccessor> MethodAccessors => new(_MethodAccessors);
     private readonly List<MixoMethod> _Methods;
     public Collection<MixoMethod> Methods => new(_Methods);
+    private readonly List<MixoConstructorMixin> _ConstructorMixins;
+    public Collection<MixoConstructorMixin> ConstructorMixins => new(_ConstructorMixins);
 
     private readonly List<MixoField> _Fields;
     public Collection<MixoField> Fields => new(_Fields);
     private readonly List<MixoFieldAccessor> _FieldAccessors;
     public Collection<MixoFieldAccessor> FieldAccessors => new(_FieldAccessors);
 
+    public readonly MethodDefinition? Constructor;
+
     public MixoTypeMixin(TypeDefinition type, TypeReference target) {
         Type = type;
         Target = target;
 
+        if (type.BaseType.FullName != typeof(object).FullName)
+            throw new Exception($"Mixin type {type.FullName} must not extend another class!");
+
         _MethodMixins = new List<MixoMethodMixin>();
         _MethodAccessors = new List<MixoMethodAccessor>();
         _Methods = new List<MixoMethod>();
+        _ConstructorMixins = new List<MixoConstructorMixin>();
         foreach (MethodDefinition method in type.Methods) {
 
             bool isSpecialMethod = false;
@@ -38,7 +46,8 @@ public class MixoTypeMixin {
             {
                 if (method.HasCustomAttributes)
                     foreach (CustomAttribute methodAttribute in method.CustomAttributes) {
-                        if (methodAttribute.AttributeType.FullName == typeof(MethodMixinAttribute).FullName) {
+                        string attributeName = methodAttribute.AttributeType.FullName;
+                        if (attributeName == typeof(MethodMixinAttribute).FullName) {
                             CustomAttributeArgument[] methodAttribArgs = methodAttribute.ConstructorArguments.ToArray();
                             if (methodAttribArgs.Length != 1 || methodAttribArgs[0].Value is not string methodTargetName)
                                 throw new SystemException($"Method {method.FullName} is using an invalid constructor for {nameof(MethodMixinAttribute)}.");
@@ -56,11 +65,15 @@ public class MixoTypeMixin {
 
                             isSpecialMethod = true;
                             break;
-                        } else if (methodAttribute.AttributeType.FullName == typeof(MixinMethodAccessorAttribute).FullName) {
+                        } else if (attributeName == typeof(MixinMethodAccessorAttribute).FullName) {
                             CustomAttributeArgument[] methodAttribArgs = methodAttribute.ConstructorArguments.ToArray();
                             if (methodAttribArgs.Length != 1 || methodAttribArgs[0].Value is not string methodTargetName)
                                 throw new SystemException($"Method {method.FullName} is using an invalid constructor for {nameof(MixinMethodAccessorAttribute)}.");
                             _MethodAccessors.Add(new MixoMethodAccessor(method, methodTargetName));
+                            isSpecialMethod = true;
+                            break;
+                        } else if (attributeName == typeof(ConstructorMixinAttribute).FullName) {
+                            _ConstructorMixins.Add(new MixoConstructorMixin(method));
                             isSpecialMethod = true;
                             break;
                         }
@@ -68,9 +81,13 @@ public class MixoTypeMixin {
             }
 
             if (!isSpecialMethod) {
-                if (method.IsConstructor)
-                    continue;
-                _Methods.Add(new MixoMethod(method));
+                if (method.IsConstructor) {
+                    if (method.HasParameters)
+                        throw new SystemException($"Type {Type} cannot declare a constructor! Found {method}");
+                    Constructor = method;
+                } else {
+                    _Methods.Add(new MixoMethod(method));
+                }
             }
         }
 
