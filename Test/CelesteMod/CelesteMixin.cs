@@ -7,7 +7,7 @@ using Monocle;
 
 namespace CelesteMod {
 
-    [ClassMixin(typeof(WaveDashPage01))]
+    [TypeMixin(typeof(WaveDashPage01))]
     public class CelesteMixin {
 
         // [MixinTargetMethod]

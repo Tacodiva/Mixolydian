@@ -3,11 +3,11 @@ using Mixolydian.Common;
 
 namespace Mod;
 
-[ClassMixin(typeof(GameProgram.TestGenericBox<object>))]
+[TypeMixin(typeof(GameProgram.TestGenericBox<object>))]
 public class TestGenerixBoxMixin<T> {
 
     [MixinThis]
-    public readonly GameProgram.TestGenericBox<T> This;
+    public readonly GameProgram.TestGenericBox<T> @this;
 
     [MixinFieldAccessor("Value")]
     public T Value;
@@ -17,18 +17,18 @@ public class TestGenerixBoxMixin<T> {
 
     [MethodMixin("GetValue")]
     public MixinReturn<T> GletValueMixin<B>() {
-        Console.WriteLine("Getting value " + This.Value);
-        This.UncalledMethod("Hello, Mixolydian!");
+        Console.WriteLine("Getting value " + @this.Value);
+        @this.UncalledMethod("Hello, Mixolydian!");
         SecretUncalledMethod("Secret hello mixolydian shhh...");
         return MixinReturn<T>.Continue();
     }
 }
 
-[ClassMixin(typeof(GameProgram))]
+[TypeMixin(typeof(GameProgram))]
 public class MyFirstMixin {
 
     [MixinThis]
-    public readonly GameProgram This;
+    public readonly GameProgram @this;
 
     [MixinFieldAccessor("Value")]
     private GameProgram.TestGenericBox<int> Value;

@@ -1,6 +1,5 @@
 ### TODO
 
-- Constructor injection
 - Other method and constructor mixin location (Head, tail and return?)
 - Static constructor injection
 - Fix documentation
@@ -20,3 +19,4 @@
 ### DONE
 
 - Add method accessors to mixins
+- Constructor injection
