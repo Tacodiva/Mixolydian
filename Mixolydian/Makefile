@@ -18,3 +18,9 @@ patch:
 
 run:
 	cd Game/Patched && dotnet Game.dll
+
+celeste:
+	cd ../Test/CelesteMod && dotnet build -c Release
+	cp ../Test/CelesteMod/bin/Release/net452/CelesteMod.dll Celeste/Mods/CelesteMod.dll
+	dotnet run
+	cp Celeste/Patched/Celeste.exe ~/.steam/steam/steamapps/common/Celeste/Celeste.exe

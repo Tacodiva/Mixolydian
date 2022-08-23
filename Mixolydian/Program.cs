@@ -15,5 +15,8 @@ public static class Program {
         patcher.AddMod("Game/Mods/Mod.dll");
         patcher.Patch("Game/Patched");
         
+        // MixolydianPatcher patcher = new("Celeste/Orignal/Celeste.exe");
+        // patcher.AddMod("Celeste/Mods/CelesteMod.dll");
+        // patcher.Patch("Celeste/Patched");
     }
 }

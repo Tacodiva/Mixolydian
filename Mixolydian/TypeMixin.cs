@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -65,20 +66,23 @@ public class TypeMixin {
                     string attributeName = methodAttribute.AttributeType.FullName;
                     if (attributeName == typeof(MethodMixinAttribute).FullName) {
                         CustomAttributeArgument[] methodAttribArgs = methodAttribute.ConstructorArguments.ToArray();
-                        if (methodAttribArgs.Length != 1 || methodAttribArgs[0].Value is not string methodTargetName)
+                        if (methodAttribArgs.Length != 2 || methodAttribArgs[0].Value is not string methodTargetName || methodAttribArgs[1].Value is not int priority)
                             throw new InvalidModException($"Method is using an invalid constructor for {nameof(MethodMixinAttribute)}.", this, method);
-                        FunctionMixins.Add(MethodMixin.Resolve(method, methodTargetName, this));
+                        FunctionMixins.Add(MethodMixin.Resolve(method, methodTargetName, priority, this));
                         isSpecialMethod = true;
                         break;
                     } else if (attributeName == typeof(MixinMethodAccessorAttribute).FullName) {
                         CustomAttributeArgument[] methodAttribArgs = methodAttribute.ConstructorArguments.ToArray();
                         if (methodAttribArgs.Length != 1 || methodAttribArgs[0].Value is not string methodTargetName)
-                            throw new InvalidModException($"Method {method.FullName} is using an invalid constructor for {nameof(MixinMethodAccessorAttribute)}.", this, method);
+                            throw new InvalidModException($"Method is using an invalid constructor for {nameof(MixinMethodAccessorAttribute)}.", this, method);
                         MethodAccessors.Add(MethodAccessor.Resolve(method, methodTargetName, this));
                         isSpecialMethod = true;
                         break;
                     } else if (attributeName == typeof(ConstructorMixinAttribute).FullName) {
-                        FunctionMixins.Add(ConstructorMixin.Resolve(method, this));
+                        CustomAttributeArgument[] methodAttribArgs = methodAttribute.ConstructorArguments.ToArray();
+                        if (methodAttribArgs.Length != 1 || methodAttribArgs[0].Value is not int priority)
+                            throw new InvalidModException($"Method is using an invalid constructor for {nameof(ConstructorMixinAttribute)}.", this, method);
+                        FunctionMixins.Add(ConstructorMixin.Resolve(method, priority, this));
                         isSpecialMethod = true;
                         break;
                     }

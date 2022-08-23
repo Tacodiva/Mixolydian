@@ -75,7 +75,13 @@ public class MyFirstMixin {
         return MixinReturn<int>.Continue();
     }
 
-    [MethodMixin("StaticTest")]
+    [MethodMixin("StaticTest", Priority.VERY_HIGH)]
+    public static MixinReturn GetValueOther() {
+        Console.WriteLine("Other static mixin called!");
+        return MixinReturn.Continue();
+    }
+
+    [MethodMixin("StaticTest", Priority.HIGH)]
     public static MixinReturn GetValueMixin() {
         Console.WriteLine("Static mixin called!");
         Test<int, string>(420, "Blaze it");

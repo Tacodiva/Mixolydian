@@ -7,7 +7,7 @@ namespace Mixolydian;
 
 internal class ConstructorMixin : FunctionMixin {
 
-    public static ConstructorMixin Resolve(MethodDefinition source, TypeMixin type) {
+    public static ConstructorMixin Resolve(MethodDefinition source, int priority, TypeMixin type) {
         if (source.HasGenericParameters)
             throw new InvalidModException("Constructor mixins cannot have generic parameters.", type, source);
 
@@ -27,11 +27,11 @@ internal class ConstructorMixin : FunctionMixin {
         if (target == null)
             throw new InvalidModException($"Couldn't find matching constructor in target for constructor mixin.", type, source);
 
-        return new ConstructorMixin(type, source, target);
+        return new ConstructorMixin(type, source, target, priority);
     }
 
-    private ConstructorMixin(TypeMixin type, MethodDefinition source, MethodDefinition target)
-        : base(type, source, target, ImmutableDictionary<string, GenericParameter>.Empty) { }
+    private ConstructorMixin(TypeMixin type, MethodDefinition source, MethodDefinition target, int priority)
+        : base(type, source, target, ImmutableDictionary<string, GenericParameter>.Empty, priority) { }
 
     protected override Instruction? FindInjectionPoint() {
         Instruction? injectionPoint = null;

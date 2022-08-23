@@ -17,11 +17,12 @@ public abstract class FunctionMixin {
 
     public readonly GenericMap GenericMap;
 
-    protected FunctionMixin(TypeMixin type, MethodDefinition source, MethodDefinition target, GenericMap genericMap) {
+    protected FunctionMixin(TypeMixin type, MethodDefinition source, MethodDefinition target, GenericMap genericMap, int priority) {
         Type = type;
         Source = source;
         Target = target;
         GenericMap = genericMap;
+        Priority = priority;
     }
 
     public virtual void Inject() {

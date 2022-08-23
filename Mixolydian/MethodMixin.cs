@@ -12,7 +12,7 @@ namespace Mixolydian;
 /// </summary>
 internal class MethodMixin : FunctionMixin {
 
-    public static MethodMixin Resolve(MethodDefinition source, string targetName, TypeMixin type) {
+    public static MethodMixin Resolve(MethodDefinition source, string targetName, int priority, TypeMixin type) {
 
         // Find the expected return type by extracting it from MixinReturn
         TypeReference? expectedReturn; // If null, expected return is `void`
@@ -51,11 +51,11 @@ internal class MethodMixin : FunctionMixin {
         if (target == null || methodGenericMap == null)
             throw new InvalidModException($"Could not find mixin target '{targetName}' with the same parameters.", type, source);
 
-        return new MethodMixin(methodGenericMap, type, source, target);
+        return new MethodMixin(methodGenericMap, type, source, target, priority);
     }
 
-    private MethodMixin(GenericMap genericMap, TypeMixin type, MethodDefinition source, MethodDefinition target)
-        : base(type, source, target, genericMap) { }
+    private MethodMixin(GenericMap genericMap, TypeMixin type, MethodDefinition source, MethodDefinition target, int priority)
+        : base(type, source, target, genericMap, priority) { }
 
     protected override IEnumerable<Instruction> ConvertInstructions(VariableDefinition[] localVariables, Instruction? injectionPoint) {
         IEnumerator<Instruction> convertedInstructions = base.ConvertInstructions(localVariables, injectionPoint).GetEnumerator();
