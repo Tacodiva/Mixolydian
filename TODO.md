@@ -1,6 +1,5 @@
 ### TODO
 
-- Static constructor injection
 - Fix documentation
 - More user-friendly error handling.
 - Other special method injection (operators, destructors, etc.)
@@ -21,3 +20,4 @@
 - Add method accessors to mixins
 - Mixin priority
 - Constructor injection
+- Static constructor injection
