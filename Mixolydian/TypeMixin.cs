@@ -19,7 +19,7 @@ public class TypeMixin {
     public readonly IDictionary<string, FieldDefinition?> FieldMap;
     public readonly IDictionary<string, MethodDefinition> MethodMap;
 
-    public readonly MethodDefinition? Constructor;
+    public readonly MethodDefinition? InstanceConstructor, StaticConstructor;
 
     public readonly IList<FunctionMixin> FunctionMixins;
     public readonly IList<MethodAccessor> MethodAccessors;
@@ -91,7 +91,8 @@ public class TypeMixin {
                         if (methodAttribArgs.Length != 2 || methodAttribArgs[0].Value is not int position
                                                          || methodAttribArgs[1].Value is not int priority)
                             throw new InvalidModException($"Method is using an invalid constructor for {nameof(ConstructorMixinAttribute)}.", this, method);
-                        FunctionMixins.Add(ConstructorMixin.Resolve(method, (MixinPriority)priority, (MixinPosition)position, this));
+                        if (method.IsStatic) FunctionMixins.Add(StaticConstructorMixin.Resolve(method, (MixinPriority)priority, (MixinPosition)position, this));
+                        else FunctionMixins.Add(InstanceConstructorMixin.Resolve(method, (MixinPriority)priority, (MixinPosition)position, this));
                         isSpecialMethod = true;
                         break;
                     }
@@ -101,9 +102,15 @@ public class TypeMixin {
             // If we don't have any attributes, we still need to copy the method into the target.
             if (!isSpecialMethod) {
                 if (method.IsConstructor) {
-                    if (method.HasParameters)
-                        throw new InvalidModException($"Cannot declare a constructor in a mixin!", this, method);
-                    Constructor = method;
+                    if (method.IsStatic) {
+                        if (method.HasParameters || StaticConstructor != null)
+                            throw new InvalidModException($"Cannot declare a static constructor in a mixin!", this, method);
+                        StaticConstructor = method;
+                    } else {
+                        if (method.HasParameters || InstanceConstructor != null)
+                            throw new InvalidModException($"Cannot declare a constructor in a mixin!", this, method);
+                        InstanceConstructor = method;
+                    }
                 } else {
                     MethodInjectors.Add(MethodInject.Resolve(this, method));
                 }
@@ -139,68 +146,104 @@ public class TypeMixin {
     }
 
     public void InjectConstructor() {
-        if (Constructor == null) return;
-        // Mixin classes could have things like `class A { string s = "Hello"; }`
-        // In this case, `s = "Hello"` is inserted into the generated blank constructor
-        // so, we need to copy all the instructions before the call to the object base
-        // constructor in the mixin's constructor into the target constructor
+        if (InstanceConstructor != null) {
+            // Mixin classes could have things like `class A { string s = "Hello"; }`
+            // In this case, `s = "Hello"` is inserted into the generated blank constructor
+            // so, we need to copy all the instructions before the call to the object base
+            // constructor in the mixin's constructor into the target constructor
 
 
-        // Firstly, find the location of the call to the base constructor
-        int baseConstructorLoc = -1;
-        for (int i = 0; i < Constructor.Body.Instructions.Count; i++) {
-            Instruction inst = Constructor.Body.Instructions[i];
-            if (inst.OpCode == OpCodes.Call) {
-                if (inst.Operand is MethodReference methodRef && methodRef.Name == ".ctor" && methodRef.DeclaringType.FullName == typeof(object).FullName) {
-                    if (Constructor.Body.Instructions[i - 1].OpCode == OpCodes.Ldarg_0) {
-                        baseConstructorLoc = i;
-                        break;
+            // Firstly, find the location of the call to the base constructor
+            int baseConstructorLoc = -1;
+            for (int i = 0; i < InstanceConstructor.Body.Instructions.Count; i++) {
+                Instruction inst = InstanceConstructor.Body.Instructions[i];
+                if (inst.OpCode == OpCodes.Call) {
+                    if (inst.Operand is MethodReference methodRef && methodRef.Name == ".ctor" && methodRef.DeclaringType.FullName == typeof(object).FullName) {
+                        if (InstanceConstructor.Body.Instructions[i - 1].OpCode == OpCodes.Ldarg_0) {
+                            baseConstructorLoc = i;
+                            break;
+                        }
+                        throw new InvalidModException("Unexpected context around call to base constructor in mixin constructor. Expected `ldarg.0`.", this, null);
                     }
-                    throw new InvalidModException("Unexpected context around call to base constructor in mixin constructor. Expected `ldarg.0`.", this, null);
+                }
+            }
+            if (baseConstructorLoc == -1)
+                throw new InvalidModException("Could not find call to base constructor in mixin constructor.", this, null);
+
+            // If the base constructor is not the last thing in the constructor, than the mod has
+            //  declaired a constructor. Wait, that's illegal.
+            if (baseConstructorLoc != (InstanceConstructor.Body.Instructions.Count - 2))
+                throw new InvalidModException($"Type cannot declare a constructor!", this, InstanceConstructor);
+
+            if (baseConstructorLoc != 1) { // If there is actually something to copy
+
+                // We don't need to copy the instruction to all the constructors, only the ones that don't call some other
+                //  constructor.
+                //  A type like `class A { A() {} A(string arg) : this() {}}` only the blank constructor needs to initalize
+                //  the instance fields.
+                List<MethodDefinition> targetConstructors = new();
+                foreach (MethodDefinition method in Target.Methods) {
+                    if (method.IsConstructor) {
+                        if (method.Body.Instructions.Any(inst => {
+                            if (inst.OpCode == OpCodes.Call && inst.Operand is MethodReference methodRef && methodRef.Name == ".ctor")
+                                // If we call a constructor that isn't our own, we need to have initalized the variables
+                                return methodRef.DeclaringType.FullName != Target.FullName;
+                            return false;
+                        })) {
+                            // So copy the instructions!
+                            targetConstructors.Add(method);
+                        }
+                    }
+                }
+
+                VariableDefinition[][] localVariables = new VariableDefinition[targetConstructors.Count][];
+                for (int i = 0; i < targetConstructors.Count; i++) {
+                    localVariables[i] = CILUtils.CopyLocalVariables(InstanceConstructor, targetConstructors[i], this, ImmutableDictionary<string, GenericParameter>.Empty);
+                }
+
+                // Copy the instructions before the call to the base constructor into the target constructor
+                for (int i = 0; i < baseConstructorLoc - 1; i++) { // -1 as to not include the Ldarg_0 instruction
+                    Instruction inst = InstanceConstructor.Body.Instructions[i];
+                    for (int j = 0; j < targetConstructors.Count; j++) {
+                        CILUtils.ConvertInstruction(inst, this, ImmutableDictionary<string, GenericParameter>.Empty, localVariables[j], InstanceConstructor);
+                        targetConstructors[j].Body.Instructions.Insert(i, inst);
+                    }
                 }
             }
         }
-        if (baseConstructorLoc == -1)
-            throw new InvalidModException("Could not find call to base constructor in mixin constructor.", this, null);
 
-        // If the base constructor is not the last thing in the constructor, than the mod has
-        //  declaired a constructor. Wait, that's illegal.
-        if (baseConstructorLoc != (Constructor.Body.Instructions.Count - 2))
-            throw new InvalidModException($"Type cannot declare a constructor!", this, Constructor);
+        if (StaticConstructor != null) {
+            // Same as above, but for static constructors.
+            MethodDefinition? targetStaticConstructor = null;
 
-        if (baseConstructorLoc != 1) { // If there is actually something to copy
-
-            // We don't need to copy the instruction to all the constructors, only the ones that don't call some other
-            //  constructor.
-            //  A type like `class A { A() {} A(string arg) : this() {}}` only the blank constructor needs to initalize
-            //  the instance fields.
-            List<MethodDefinition> targetConstructors = new();
             foreach (MethodDefinition method in Target.Methods) {
-                if (method.IsConstructor) {
-                    if (method.Body.Instructions.Any(inst => {
-                        if (inst.OpCode == OpCodes.Call && inst.Operand is MethodReference methodRef && methodRef.Name == ".ctor")
-                            // If we call a constructor that isn't our own, we need to have initalized the variables
-                            return methodRef.DeclaringType.FullName != Target.FullName;
-                        return false;
-                    })) {
-                        // So copy the instructions!
-                        targetConstructors.Add(method);
-                    }
+                if (method.IsConstructor && method.IsStatic) {
+                    targetStaticConstructor = method;
+                    break;
                 }
             }
 
-            VariableDefinition[][] localVariables = new VariableDefinition[targetConstructors.Count][];
-            for (int i = 0; i < targetConstructors.Count; i++) {
-                localVariables[i] = CILUtils.CopyLocalVariables(Constructor, targetConstructors[i], this, ImmutableDictionary<string, GenericParameter>.Empty);
+            // Static consturctors have the added complexity of there may not actually be one in
+            //  the target, so we might have to create one.
+            if (targetStaticConstructor == null) {
+                targetStaticConstructor = new MethodDefinition(".cctor",
+                    MethodAttributes.Private | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName |
+                    MethodAttributes.Static, Target.Module.ImportReference(typeof(void)));
+                targetStaticConstructor.Body.GetILProcessor().Emit(OpCodes.Ret);
+                Target.Methods.Add(targetStaticConstructor);
             }
 
-            // Copy the instructions before the call to the base constructor into the target constructor
-            for (int i = 0; i < baseConstructorLoc - 1; i++) { // -1 as to not include the Ldarg_0 instruction
-                Instruction inst = Constructor.Body.Instructions[i];
-                for (int j = 0; j < targetConstructors.Count; j++) {
-                    CILUtils.ConvertInstruction(inst, this, ImmutableDictionary<string, GenericParameter>.Empty, localVariables[j], Constructor);
-                    targetConstructors[j].Body.Instructions.Insert(i, inst);
+            Instruction firstIntruction = targetStaticConstructor.Body.Instructions[0];
+            ILProcessor body = targetStaticConstructor.Body.GetILProcessor();
+            VariableDefinition[] localVariables = CILUtils.CopyLocalVariables(StaticConstructor, targetStaticConstructor, this, ImmutableDictionary<string, GenericParameter>.Empty);
+
+            foreach (Instruction inst in StaticConstructor.Body.Instructions) {
+                CILUtils.ConvertInstruction(inst, this, ImmutableDictionary<string, GenericParameter>.Empty, localVariables, StaticConstructor);
+                if (inst.OpCode == OpCodes.Ret) {
+                    inst.OpCode = OpCodes.Br;
+                    inst.Operand = firstIntruction;
                 }
+                body.InsertBefore(firstIntruction, inst);
             }
         }
     }

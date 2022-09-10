@@ -74,8 +74,6 @@ public class MethodTailMixin : FunctionMixin {
                 Instruction newInst = CILUtils.CreateLocalVariableInstruction(ReturnVar, CILUtils.StackInstruction.SET_VAL_FROM_STACK);
                 inst.OpCode = newInst.OpCode;
                 inst.Operand = newInst.Operand;
-                System.Console.WriteLine(inst);
-                System.Console.WriteLine(ReturnArgIndex);
             } else {
                 inst.OpCode = OpCodes.Nop;
             }

@@ -6,15 +6,20 @@ public class GameProgram {
     private TestGenericBox<int> Value;
 
     public GameProgram(string abcde) : this() {
-        
+
     }
 
     public GameProgram() {
-        Value = new TestGenericBox<int>(69420);
+        if (Random.Shared.NextDouble() != 10) {
+            Value = new TestGenericBox<int>(69420);
+            return;
+        }
+        Value = null!;
+        Console.WriteLine("Unreachable");
     }
 
     public GameProgram(int a) {
-        Value = new TestGenericBox<int>(a);        
+        Value = new TestGenericBox<int>(a);
     }
 
     public int Test(string arg) {
@@ -28,6 +33,10 @@ public class GameProgram {
 
     ////////////////////////////////////////////////////////
 
+    static GameProgram() {
+        Console.WriteLine("Static constructor");
+    }
+
     public static void Main(string[] args) {
         GameProgram gameProgram = new();
         Console.WriteLine(gameProgram.Test("Hello"));
@@ -36,10 +45,15 @@ public class GameProgram {
         gameProgram = new("Hello, World!");
         Console.WriteLine(gameProgram.Test("Hello"));
         StaticTest();
+        Console.WriteLine(GetFinalMessage());
     }
 
     public static void StaticTest() {
         Console.WriteLine("Hello from static test!");
+    }
+
+    public static string GetFinalMessage() {
+        return "Hello";
     }
 
     public sealed class TestGenericBox<TObject> {

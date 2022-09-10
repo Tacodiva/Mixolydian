@@ -35,6 +35,8 @@ public class MyFirstMixin {
 
     public static string Hello;
 
+    public static readonly string MessageInject = "World!";
+
     public string InitalizedString = "Fuck You";
     public object AHh = new object();
 
@@ -102,6 +104,21 @@ public class MyFirstMixin {
     [ConstructorMixin(MixinPosition.TAIL)]
     public void TestConstructorMixinII() {
         Console.WriteLine("Injected into the constructor tail >:)");
+    }
+
+    [MethodTailMixin("GetFinalMessage")]
+    public static string GetFinalMessageMixin(string @return) {
+        return @return + " " + MessageInject;
+    }
+
+    [ConstructorMixin(MixinPosition.HEAD)]
+    public static void TestStaticConstructorMixin() {
+        Console.WriteLine("Static constructor head O_O");
+    }
+
+    [ConstructorMixin(MixinPosition.TAIL)]
+    public static void TestStaticConstructorMixinII() {
+        Console.WriteLine("Static constructor tail O_O");
     }
 
 }

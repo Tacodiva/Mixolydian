@@ -7,9 +7,9 @@ using Mono.Cecil.Cil;
 
 namespace Mixolydian;
 
-internal class ConstructorMixin : FunctionMixin {
+internal class InstanceConstructorMixin : FunctionMixin {
 
-    public static ConstructorMixin Resolve(MethodDefinition source, MixinPriority priority, MixinPosition position, TypeMixin type) {
+    public static InstanceConstructorMixin Resolve(MethodDefinition source, MixinPriority priority, MixinPosition position, TypeMixin type) {
         if (source.HasGenericParameters)
             throw new InvalidModException("Constructor mixins cannot have generic parameters.", type, source);
 
@@ -29,13 +29,13 @@ internal class ConstructorMixin : FunctionMixin {
         if (target == null)
             throw new InvalidModException($"Couldn't find matching constructor in target for constructor mixin.", type, source);
 
-        return new ConstructorMixin(type, source, target, priority, position);
+        return new InstanceConstructorMixin(type, source, target, priority, position);
     }
 
     public readonly MixinPosition Position;
     private Instruction? _injectionPoint;
 
-    private ConstructorMixin(TypeMixin type, MethodDefinition source, MethodDefinition target, MixinPriority priority, MixinPosition position)
+    private InstanceConstructorMixin(TypeMixin type, MethodDefinition source, MethodDefinition target, MixinPriority priority, MixinPosition position)
         : base(type, source, target, ImmutableDictionary<string, GenericParameter>.Empty, priority) {
         Position = position;
     }
@@ -60,10 +60,10 @@ internal class ConstructorMixin : FunctionMixin {
                 yield return _injectionPoint;
                 yield break;
             case MixinPosition.TAIL:
-                Instruction lastInstruction = Target.Body.Instructions.Last();
-                if (lastInstruction.OpCode != OpCodes.Ret)
+                _injectionPoint = Target.Body.Instructions.Last();
+                if (_injectionPoint.OpCode != OpCodes.Ret)
                     throw new InvalidModException("Last instruction of target is not ret.", Type, Source);
-                lastInstruction.OpCode = OpCodes.Nop;
+                _injectionPoint.OpCode = OpCodes.Nop;
                 yield return null;
                 yield break;
             default:
@@ -74,10 +74,24 @@ internal class ConstructorMixin : FunctionMixin {
     protected override IEnumerable<Instruction> ConvertInstructions(VariableDefinition[] localVariables) {
         foreach (Instruction inst in base.ConvertInstructions(localVariables)) {
             if (inst.OpCode == OpCodes.Ret && Position == MixinPosition.HEAD) {
-                inst.OpCode = OpCodes.Nop;
-                inst.Operand = null;
+                inst.OpCode = OpCodes.Br;
+                inst.Operand = _injectionPoint;
             }
             yield return inst;
         }
+    }
+
+    public override void Inject() {
+        base.Inject();
+        // The consturctor might return early. If it does, we still want to execute the code
+        //  we injected at the end, so replace the ret with a br to the new code.
+        if (Position == MixinPosition.TAIL)
+            foreach (Instruction inst in Target.Body.Instructions) {
+                if (inst == _injectionPoint) break;
+                if (inst.OpCode == OpCodes.Ret) {
+                    inst.OpCode = OpCodes.Br;
+                    inst.Operand = _injectionPoint;
+                }
+            }
     }
 }
