@@ -21,11 +21,11 @@ public class TypeMixin {
 
     public readonly MethodDefinition? InstanceConstructor, StaticConstructor;
 
-    public readonly IList<FunctionMixin> FunctionMixins;
-    public readonly IList<MethodAccessor> MethodAccessors;
-    public readonly IList<MethodInject> MethodInjectors;
-    public readonly IList<FieldAccessor> FieldAccessors;
-    public readonly IList<FieldInject> FieldInjectors;
+    public readonly List<FunctionMixin> FunctionMixins;
+    public readonly List<MethodAccessor> MethodAccessors;
+    public readonly List<MethodInject> MethodInjectors;
+    public readonly List<FieldAccessor> FieldAccessors;
+    public readonly List<FieldInject> FieldInjectors;
 
     public TypeMixin(Mod mod, TypeDefinition source, TypeReference target) {
         Mod = mod;
@@ -142,6 +142,28 @@ public class TypeMixin {
 
             if (!isSpecialField)
                 FieldInjectors.Add(FieldInject.Resolve(field, this));
+        }
+
+        foreach (PropertyDefinition property in Source.Properties) {
+            if (property.HasCustomAttributes) {
+                foreach (CustomAttribute propAttribute in property.CustomAttributes) {
+                    if (propAttribute.AttributeType.FullName == typeof(MixinFieldAccessorAttribute).FullName) {
+                        CustomAttributeArgument[] methodAttribArgs = propAttribute.ConstructorArguments.ToArray();
+                        if (methodAttribArgs.Length != 1 || methodAttribArgs[0].Value is not string propTargetName)
+                            throw new InvalidModException($"Property is using an invalid constructor for {nameof(MixinFieldAccessorAttribute)}.", this, property);
+
+                        if (property.GetMethod != null) {
+                            MethodAccessors.Add(MethodAccessor.Resolve(property.GetMethod, "get_" + propTargetName, this));
+                        }
+                        if (property.SetMethod != null)
+                            MethodAccessors.Add(MethodAccessor.Resolve(property.SetMethod, "set_" + propTargetName, this));
+
+                        MethodInjectors.RemoveAll(methodInjector => 
+                                methodInjector.Source == property.GetMethod || methodInjector.Source == property.SetMethod);
+                        break;
+                    }
+                }
+            }
         }
     }
 

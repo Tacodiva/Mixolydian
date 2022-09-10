@@ -5,13 +5,18 @@ public class GameProgram {
 
     private TestGenericBox<int> Value;
 
-    public GameProgram(string abcde) : this() {
+    public int TestGetterSetter {
+        get;
+        set;
+    }
 
+    public GameProgram(string abcde) : this() {
+        TestGetterSetter = 1 + TestGetterSetter * 2;
     }
 
     public GameProgram() {
         if (Random.Shared.NextDouble() != 10) {
-            Value = new TestGenericBox<int>(69420);
+            Value = -new TestGenericBox<int>(69420);
             return;
         }
         Value = null!;
@@ -76,6 +81,8 @@ public class GameProgram {
         private void SecretUncalledMethod(string messageII) {
             Console.WriteLine($"Got the very secret message '{messageII}'.");
         }
+
+        public static TestGenericBox<TObject> operator -(TestGenericBox<TObject> a) => a;
     }
 
 }

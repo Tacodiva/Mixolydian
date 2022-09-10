@@ -22,6 +22,19 @@ public class TestGenerixBoxMixin<T> {
         SecretUncalledMethod("Secret hello mixolydian shhh...");
         return MixinReturn<T>.Continue();
     }
+
+
+    [MethodHeadMixin("-")]
+    public static MixinReturn<GameProgram.TestGenericBox<T>> NegationMixin(GameProgram.TestGenericBox<T> input) {
+        Console.WriteLine("Negation head");
+        return MixinReturn<GameProgram.TestGenericBox<T>>.Continue();
+    }
+
+    [MethodTailMixin("-")]
+    public static GameProgram.TestGenericBox<T> NegationTailMixin(GameProgram.TestGenericBox<T> input, GameProgram.TestGenericBox<T> @return) {
+        Console.WriteLine("Negation tail");
+        return @return;
+    }
 }
 
 [TypeMixin(typeof(GameProgram))]
@@ -40,7 +53,13 @@ public class MyFirstMixin {
     public string InitalizedString = "Fuck You";
     public object AHh = new object();
 
-    public int TestField;
+    public int TestField { get; set; }
+
+    [MixinFieldAccessor("TestGetterSetter")]
+    public extern int TestGetterSetter {
+        get;
+        set;
+    }
 
     public static void Test<A, B>(A a, B b) {
         Console.WriteLine("A = " + a);
@@ -56,9 +75,9 @@ public class MyFirstMixin {
     public void Test(string arg) {
         Value.Value = 7729;
         Test<string>(arg);
-        Console.WriteLine("Test Field = " + TestField);
-        Console.WriteLine("Initalized string = " + InitalizedString);
-        Console.WriteLine("AHh = " + AHh);
+        Console.WriteLine("Test Field = " + (TestField++));
+        Console.WriteLine("Initalized string = " + InitalizedString + TestField);
+        Console.WriteLine("AHh = " + AHh + " " + (TestGetterSetter++));
     }
 
     public void Test(int arg) {

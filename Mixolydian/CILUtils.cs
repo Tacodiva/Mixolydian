@@ -250,7 +250,7 @@ internal static class CILUtils {
         } else if (inst.Operand is FieldReference operandField) {
             FieldReference? fieldReference = ConvertFieldReference(operandField, target, methodGenericMap, source);
             if (fieldReference == null) { // If the field reference is null, we should actually refer to 'this'
-                                          // We can only load 'this', not set it
+                // We can only load 'this', not set it
                 if (inst.OpCode != OpCodes.Ldfld && inst.OpCode != OpCodes.Ldflda)
                     throw new InvalidModException("Cannot set a field with the MixinThis attribute!", target, source);
 
@@ -359,13 +359,13 @@ internal static class CILUtils {
 
     public static (int arg, StackInstruction type) GetArgumentInstructionInfo(Instruction inst) {
         OpCode opcode = inst.OpCode;
-        if (opcode == OpCodes.Ldarg || opcode == OpCodes.Ldarg_S) return (((ParameterDefinition) inst.Operand).Index, StackInstruction.LOAD_VAL_TO_STACK);
+        if (opcode == OpCodes.Ldarg || opcode == OpCodes.Ldarg_S) return (((ParameterDefinition)inst.Operand).Index, StackInstruction.LOAD_VAL_TO_STACK);
         if (opcode == OpCodes.Ldarg_0) return (0, StackInstruction.LOAD_VAL_TO_STACK);
         if (opcode == OpCodes.Ldarg_1) return (1, StackInstruction.LOAD_VAL_TO_STACK);
         if (opcode == OpCodes.Ldarg_2) return (2, StackInstruction.LOAD_VAL_TO_STACK);
         if (opcode == OpCodes.Ldarg_3) return (3, StackInstruction.LOAD_VAL_TO_STACK);
-        if (opcode == OpCodes.Ldarga || opcode == OpCodes.Ldarga_S) return (((ParameterDefinition) inst.Operand).Index, StackInstruction.LOAD_PTR_TO_STACK);
-        if (opcode == OpCodes.Starg || opcode == OpCodes.Starg_S) return (((ParameterDefinition) inst.Operand).Index, StackInstruction.SET_VAL_FROM_STACK);
+        if (opcode == OpCodes.Ldarga || opcode == OpCodes.Ldarga_S) return (((ParameterDefinition)inst.Operand).Index, StackInstruction.LOAD_PTR_TO_STACK);
+        if (opcode == OpCodes.Starg || opcode == OpCodes.Starg_S) return (((ParameterDefinition)inst.Operand).Index, StackInstruction.SET_VAL_FROM_STACK);
         return (-1, StackInstruction.INVALID);
     }
 
@@ -404,7 +404,7 @@ internal static class CILUtils {
             if (b is not IGenericInstance bGenericInst)
                 return false;
 
-            if (a.Name != b.Name || a.DeclaringType != b.DeclaringType)
+            if (a.Name != b.Name || a.DeclaringType?.Name != b.DeclaringType?.Name)
                 return false;
 
             int genericArgumentCount = aGenericInst.GenericArguments.Count;
@@ -419,4 +419,29 @@ internal static class CILUtils {
         }
         return a.FullName == b.FullName;
     }
+
+    public static readonly ImmutableDictionary<string, string[]> OperatorFunctionNames = new KeyValuePair<string, string[]>[] {
+        new("==", new string[] {"op_Equality"}),
+        new("!=", new string[] {"op_Inequality"}),
+        new(">",  new string[] {"op_GreaterThan"}),
+        new("<",  new string[] {"op_LessThan"}),
+        new(">=", new string[] {"op_GreaterThanOrEqual"}),
+        new("<=", new string[] {"op_LessThanOrEqual"}),
+        new("&",  new string[] {"op_BitwiseAnd"}),
+        new("|",  new string[] {"op_BitwiseOr"}),
+        new("+",  new string[] {"op_Addition", "op_UnaryPlus"}),
+        new("-",  new string[] {"op_Subtraction", "op_UnaryNegation"}),
+        new("/",  new string[] {"op_Division"}),
+        new("%",  new string[] {"op_Modulus"}),
+        new("*",  new string[] {"op_Multiply"}),
+        new("<<", new string[] {"op_LeftShift"}),
+        new(">>", new string[] {"op_RightShift"}),
+        new("^",  new string[] {"op_ExclusiveOr"}),
+        new("!",  new string[] {"op_LogicalNot"}),
+        new("~",  new string[] {"op_OnesComplement"}),
+        new("false", new string[] {"op_False"}),
+        new("true", new string[] {"op_True"}),
+        new("++", new string[] {"op_Increment"}),
+        new("--", new string[] {"op_Decrement"}),
+    }.ToImmutableDictionary();
 }

@@ -10,6 +10,11 @@ internal class MethodHeadMixin : FunctionMixin {
 
     public static MethodHeadMixin Resolve(MethodDefinition source, string targetName, MixinPriority priority, TypeMixin type) {
 
+        string[] targetNames;
+        if (CILUtils.OperatorFunctionNames.TryGetValue(targetName, out string[]? operatorFuncName))
+            targetNames = operatorFuncName;
+        else targetNames = new string[] { targetName };
+
         // Find the expected return type by extracting it from MixinReturn
         TypeReference? expectedReturn; // If null, expected return is `void`
         if (source.ReturnType.IsGenericInstance && source.ReturnType is IGenericInstance methodReturnGeneric) {
@@ -26,7 +31,7 @@ internal class MethodHeadMixin : FunctionMixin {
         MethodDefinition? target = null;
         GenericMap? methodGenericMap = null;
         foreach (MethodDefinition possibleTarget in type.Target.Methods) {
-            if (possibleTarget.Name != targetName) continue;
+            if (!targetNames.Contains(possibleTarget.Name)) continue;
             if (possibleTarget.IsStatic != source.IsStatic) continue;
             GenericMap? possibleMethodGenericMap = CILUtils.TryCreateGenericMap(source, possibleTarget);
             if (possibleMethodGenericMap == null) continue;
@@ -43,7 +48,6 @@ internal class MethodHeadMixin : FunctionMixin {
                 break;
             }
         }
-
         if (target == null || methodGenericMap == null)
             throw new InvalidModException($"Could not find mixin target '{targetName}' with the same parameters.", type, source);
 

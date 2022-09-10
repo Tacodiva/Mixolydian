@@ -1,7 +1,7 @@
 using System;
 
 namespace Mixolydian.Common {
-    [AttributeUsage(AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
     public sealed class MixinFieldAccessorAttribute : Attribute {
 
         public readonly string Target;

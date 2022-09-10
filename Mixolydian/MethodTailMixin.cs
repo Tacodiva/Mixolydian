@@ -9,6 +9,12 @@ namespace Mixolydian;
 public class MethodTailMixin : FunctionMixin {
 
     public static MethodTailMixin Resolve(MethodDefinition source, string targetName, MixinPriority priority, TypeMixin type) {
+        
+        string[] targetNames;
+        if (CILUtils.OperatorFunctionNames.TryGetValue(targetName, out string[]? operatorFuncName))
+            targetNames = operatorFuncName;
+        else targetNames = new string[] { targetName };
+
         TypeReference? expectedReturn = source.ReturnType;
         int returnArgIdx = -1;
 
@@ -19,7 +25,6 @@ public class MethodTailMixin : FunctionMixin {
             //  Any referenes to the last parameter will be replaced
             // returnArgIdx = source.Parameters.Count - (source.HasThis ? 0 : 1);
             returnArgIdx = source.Parameters.Count - (source.HasThis ? 0 : 1);
-            System.Console.WriteLine($"{source} -> {returnArgIdx}");
             source.Parameters.RemoveAt(source.Parameters.Count - 1);
         }
 
@@ -27,7 +32,7 @@ public class MethodTailMixin : FunctionMixin {
         MethodDefinition? target = null;
         GenericMap? methodGenericMap = null;
         foreach (MethodDefinition possibleTarget in type.Target.Methods) {
-            if (possibleTarget.Name != targetName) continue;
+            if (!targetNames.Contains(possibleTarget.Name)) continue;
             if (possibleTarget.IsStatic != source.IsStatic) continue;
             GenericMap? possibleMethodGenericMap = CILUtils.TryCreateGenericMap(source, possibleTarget);
             if (possibleMethodGenericMap == null) continue;
