@@ -1,8 +1,9 @@
 
 using System.Collections.Generic;
+using System.Linq;
+using Mixolydian.Common;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using GenericMap = System.Collections.Generic.IDictionary<string, Mono.Cecil.GenericParameter>;
 
 namespace Mixolydian;
 
@@ -13,11 +14,11 @@ public abstract class FunctionMixin {
     public readonly MethodDefinition Source;
     public readonly MethodDefinition Target;
 
-    public readonly int Priority;
+    public readonly MixinPriority Priority;
 
     public readonly GenericMap GenericMap;
 
-    protected FunctionMixin(TypeMixin type, MethodDefinition source, MethodDefinition target, GenericMap genericMap, int priority) {
+    protected FunctionMixin(TypeMixin type, MethodDefinition source, MethodDefinition target, GenericMap genericMap, MixinPriority priority) {
         Type = type;
         Source = source;
         Target = target;
@@ -26,27 +27,24 @@ public abstract class FunctionMixin {
     }
 
     public virtual void Inject() {
-        Instruction? injectionPoint = FindInjectionPoint();
-        ILProcessor targetInstructions = Target.Body.GetILProcessor();
-
         VariableDefinition[] localVariables = CILUtils.CopyLocalVariables(Source, Target, Type, GenericMap);
-        
-        foreach (Instruction inst in ConvertInstructions(localVariables, injectionPoint))
-            AppendInstruction(targetInstructions, inst, injectionPoint);
+        List<Instruction?> injectionPoints = EnumerateInjectionPoints().ToList();
+        List<Instruction> convertedInstructions = ConvertInstructions(localVariables).ToList();
+        ILProcessor targetInstructions = Target.Body.GetILProcessor();
+        foreach (Instruction? injectionPoint in injectionPoints) {
+            foreach (Instruction inst in convertedInstructions)
+                AppendInstruction(targetInstructions, inst, injectionPoint);
+        }
     }
 
-    protected virtual Instruction? FindInjectionPoint() {
-        if (!Target.HasBody || Target.Body.Instructions.Count == 0)
-            return null;
-        return Target.Body.Instructions[0];
-    }
+    protected abstract IEnumerable<Instruction?> EnumerateInjectionPoints();
 
     protected virtual void AppendInstruction(ILProcessor target, Instruction inst, Instruction? injectionPoint) {
         if (injectionPoint == null) target.Append(inst);
         else target.InsertBefore(injectionPoint, inst);
     }
 
-    protected virtual IEnumerable<Instruction> ConvertInstructions(VariableDefinition[] localVariables, Instruction? injectionPoint) {
+    protected virtual IEnumerable<Instruction> ConvertInstructions(VariableDefinition[] localVariables) {
         foreach (Instruction inst in Source.Body.Instructions) {
             CILUtils.ConvertInstruction(inst, Type, GenericMap, localVariables, Source);
             yield return inst;

@@ -1,5 +1,5 @@
 namespace Mixolydian.Common {
-    public enum Priority {
+    public enum MixinPriority {
         VERY_LOW = -10000,
         LOW = -5000,
         NORMAL = 0,

@@ -15,7 +15,7 @@ public class TestGenerixBoxMixin<T> {
     [MixinMethodAccessor("SecretUncalledMethod")]
     public extern void SecretUncalledMethod(string value);
 
-    [MethodMixin("GetValue")]
+    [MethodHeadMixin("GetValue")]
     public MixinReturn<T> GletValueMixin<B>() {
         Console.WriteLine("Getting value " + @this.Value);
         @this.UncalledMethod("Hello, Mixolydian!");
@@ -63,34 +63,45 @@ public class MyFirstMixin {
         Test<int>(arg);
     }
 
-    [MethodMixin("Concat")]
+    [MethodHeadMixin("Concat")]
     public MixinReturn<T2> ConcatMixin<T1, T2>(List<T1> a, T2 b) {
         return MixinReturn<T2>.Return(default!);
     }
 
-    [MethodMixin("Test")]
+    [MethodTailMixin("Concat")]
+    public T2 ConcatMixin2<T1, T2>(List<T1> a, T2 b, T2 @return) {
+        Console.WriteLine("Concat returning " + @return);
+        return @return;
+    }
+
+    [MethodHeadMixin("Test")]
     public MixinReturn<int> VoidMixin(string arg) {
         Test(arg);
         Test(27);
         return MixinReturn<int>.Continue();
     }
 
-    [MethodMixin("StaticTest", Priority.VERY_HIGH)]
+    [MethodHeadMixin("StaticTest", MixinPriority.VERY_HIGH)]
     public static MixinReturn GetValueOther() {
         Console.WriteLine("Other static mixin called!");
         return MixinReturn.Continue();
     }
 
-    [MethodMixin("StaticTest", Priority.HIGH)]
+    [MethodHeadMixin("StaticTest", MixinPriority.HIGH)]
     public static MixinReturn GetValueMixin() {
         Console.WriteLine("Static mixin called!");
         Test<int, string>(420, "Blaze it");
         return MixinReturn.Continue();
     }
 
-    [ConstructorMixin]
+    [ConstructorMixin(MixinPosition.HEAD)]
     public void TestConstructorMixin() {
-        Console.WriteLine("Injected into the constructor >:)");
+        Console.WriteLine("Injected into the constructor head >:)");
+    }
+
+    [ConstructorMixin(MixinPosition.TAIL)]
+    public void TestConstructorMixinII() {
+        Console.WriteLine("Injected into the constructor tail >:)");
     }
 
 }

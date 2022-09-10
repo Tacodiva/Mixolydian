@@ -1,7 +1,5 @@
 using Mono.Cecil;
 
-using GenericMap = System.Collections.Generic.IDictionary<string, Mono.Cecil.GenericParameter>;
-
 namespace Mixolydian;
 
 public class MethodAccessor {

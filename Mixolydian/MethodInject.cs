@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using GenericMap = System.Collections.Generic.IDictionary<string, Mono.Cecil.GenericParameter>;
 
 namespace Mixolydian;
 

@@ -6,7 +6,6 @@ using System.Collections.Immutable;
 using System.Linq;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using GenericMap = System.Collections.Generic.IDictionary<string, Mono.Cecil.GenericParameter>;
 
 internal static class CILUtils {
     /// <summary>
@@ -262,8 +261,8 @@ internal static class CILUtils {
             } else
                 inst.Operand = fieldReference;
         } else if (localVariables != null && localVariables.Length != 0) {
-            (int localVariable, LocalVariableInstruction localVariableInstruction) = GetLocalVariableInstruction(inst);
-            if (localVariableInstruction != LocalVariableInstruction.INVALID) { // If the operand is a local variable index
+            (int localVariable, StackInstruction localVariableInstruction) = GetLocalVariableInstructionInfo(inst);
+            if (localVariableInstruction != StackInstruction.INVALID) { // If the operand is a local variable index
                 VariableDefinition newVariableDef = localVariables[localVariable];
                 Instruction replace = CreateLocalVariableInstruction(newVariableDef, localVariableInstruction);
                 // We can't just `inst = reaplce` because it may break branching instructions that point to inst
@@ -307,8 +306,8 @@ internal static class CILUtils {
         return true;
     }
 
-
-    public enum LocalVariableInstruction {
+    // Used for the ldloc, stloc, ldarg and starg opcodes
+    public enum StackInstruction {
         INVALID,
         LOAD_VAL_TO_STACK,
         LOAD_PTR_TO_STACK,
@@ -319,35 +318,35 @@ internal static class CILUtils {
     /// 'var' is the local variable index, -1 if not a local variable instruction
     /// 'type' is if the instruction type. INVALID if not a local variable instruction.
     /// </returns>
-    public static (int var, LocalVariableInstruction type) GetLocalVariableInstruction(Instruction inst) {
+    public static (int var, StackInstruction type) GetLocalVariableInstructionInfo(Instruction inst) {
         OpCode opcode = inst.OpCode;
-        if (opcode == OpCodes.Ldloc || opcode == OpCodes.Ldloc_S) return (((VariableDefinition)inst.Operand).Index, LocalVariableInstruction.LOAD_VAL_TO_STACK);
-        if (opcode == OpCodes.Ldloc_0) return (0, LocalVariableInstruction.LOAD_VAL_TO_STACK);
-        if (opcode == OpCodes.Ldloc_1) return (1, LocalVariableInstruction.LOAD_VAL_TO_STACK);
-        if (opcode == OpCodes.Ldloc_2) return (2, LocalVariableInstruction.LOAD_VAL_TO_STACK);
-        if (opcode == OpCodes.Ldloc_3) return (3, LocalVariableInstruction.LOAD_VAL_TO_STACK);
-        if (opcode == OpCodes.Ldloca || opcode == OpCodes.Ldloca_S) return (((VariableDefinition)inst.Operand).Index, LocalVariableInstruction.LOAD_PTR_TO_STACK);
-        if (opcode == OpCodes.Stloc || opcode == OpCodes.Stloc_S) return (((VariableDefinition)inst.Operand).Index, LocalVariableInstruction.SET_VAL_FROM_STACK);
-        if (opcode == OpCodes.Stloc_0) return (0, LocalVariableInstruction.SET_VAL_FROM_STACK);
-        if (opcode == OpCodes.Stloc_1) return (1, LocalVariableInstruction.SET_VAL_FROM_STACK);
-        if (opcode == OpCodes.Stloc_2) return (2, LocalVariableInstruction.SET_VAL_FROM_STACK);
-        if (opcode == OpCodes.Stloc_3) return (3, LocalVariableInstruction.SET_VAL_FROM_STACK);
-        return (-1, LocalVariableInstruction.INVALID);
+        if (opcode == OpCodes.Ldloc || opcode == OpCodes.Ldloc_S) return (((VariableDefinition)inst.Operand).Index, StackInstruction.LOAD_VAL_TO_STACK);
+        if (opcode == OpCodes.Ldloc_0) return (0, StackInstruction.LOAD_VAL_TO_STACK);
+        if (opcode == OpCodes.Ldloc_1) return (1, StackInstruction.LOAD_VAL_TO_STACK);
+        if (opcode == OpCodes.Ldloc_2) return (2, StackInstruction.LOAD_VAL_TO_STACK);
+        if (opcode == OpCodes.Ldloc_3) return (3, StackInstruction.LOAD_VAL_TO_STACK);
+        if (opcode == OpCodes.Ldloca || opcode == OpCodes.Ldloca_S) return (((VariableDefinition)inst.Operand).Index, StackInstruction.LOAD_PTR_TO_STACK);
+        if (opcode == OpCodes.Stloc || opcode == OpCodes.Stloc_S) return (((VariableDefinition)inst.Operand).Index, StackInstruction.SET_VAL_FROM_STACK);
+        if (opcode == OpCodes.Stloc_0) return (0, StackInstruction.SET_VAL_FROM_STACK);
+        if (opcode == OpCodes.Stloc_1) return (1, StackInstruction.SET_VAL_FROM_STACK);
+        if (opcode == OpCodes.Stloc_2) return (2, StackInstruction.SET_VAL_FROM_STACK);
+        if (opcode == OpCodes.Stloc_3) return (3, StackInstruction.SET_VAL_FROM_STACK);
+        return (-1, StackInstruction.INVALID);
     }
 
-    public static Instruction CreateLocalVariableInstruction(VariableDefinition var, LocalVariableInstruction type) {
+    public static Instruction CreateLocalVariableInstruction(VariableDefinition var, StackInstruction type) {
         switch (type) {
-            case LocalVariableInstruction.LOAD_VAL_TO_STACK:
+            case StackInstruction.LOAD_VAL_TO_STACK:
                 if (var.Index == 0) return Instruction.Create(OpCodes.Ldloc_0);
                 if (var.Index == 1) return Instruction.Create(OpCodes.Ldloc_1);
                 if (var.Index == 2) return Instruction.Create(OpCodes.Ldloc_2);
                 if (var.Index == 3) return Instruction.Create(OpCodes.Ldloc_3);
                 if (var.Index <= byte.MaxValue) return Instruction.Create(OpCodes.Ldloc_S, var);
                 return Instruction.Create(OpCodes.Ldloc, var);
-            case LocalVariableInstruction.LOAD_PTR_TO_STACK:
+            case StackInstruction.LOAD_PTR_TO_STACK:
                 if (var.Index <= byte.MaxValue) return Instruction.Create(OpCodes.Ldloca_S, var);
                 return Instruction.Create(OpCodes.Ldloca, var);
-            case LocalVariableInstruction.SET_VAL_FROM_STACK:
+            case StackInstruction.SET_VAL_FROM_STACK:
                 if (var.Index == 0) return Instruction.Create(OpCodes.Stloc_0);
                 if (var.Index == 1) return Instruction.Create(OpCodes.Stloc_1);
                 if (var.Index == 2) return Instruction.Create(OpCodes.Stloc_2);
@@ -356,6 +355,18 @@ internal static class CILUtils {
                 return Instruction.Create(OpCodes.Stloc, var);
         }
         throw new SystemException($"Invalid local variable instruction type {type}.");
+    }
+
+    public static (int arg, StackInstruction type) GetArgumentInstructionInfo(Instruction inst) {
+        OpCode opcode = inst.OpCode;
+        if (opcode == OpCodes.Ldarg || opcode == OpCodes.Ldarg_S) return (((ParameterDefinition) inst.Operand).Index, StackInstruction.LOAD_VAL_TO_STACK);
+        if (opcode == OpCodes.Ldarg_0) return (0, StackInstruction.LOAD_VAL_TO_STACK);
+        if (opcode == OpCodes.Ldarg_1) return (1, StackInstruction.LOAD_VAL_TO_STACK);
+        if (opcode == OpCodes.Ldarg_2) return (2, StackInstruction.LOAD_VAL_TO_STACK);
+        if (opcode == OpCodes.Ldarg_3) return (3, StackInstruction.LOAD_VAL_TO_STACK);
+        if (opcode == OpCodes.Ldarga || opcode == OpCodes.Ldarga_S) return (((ParameterDefinition) inst.Operand).Index, StackInstruction.LOAD_PTR_TO_STACK);
+        if (opcode == OpCodes.Starg || opcode == OpCodes.Starg_S) return (((ParameterDefinition) inst.Operand).Index, StackInstruction.SET_VAL_FROM_STACK);
+        return (-1, StackInstruction.INVALID);
     }
 
 

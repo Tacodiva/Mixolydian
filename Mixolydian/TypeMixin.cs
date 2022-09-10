@@ -5,7 +5,6 @@ using System.Linq;
 using Mixolydian.Common;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using GenericMap = System.Collections.Generic.IDictionary<string, Mono.Cecil.GenericParameter>;
 
 namespace Mixolydian;
 
@@ -15,8 +14,8 @@ public class TypeMixin {
 
     public readonly TypeDefinition Source;
     public readonly TypeDefinition Target;
-    public readonly GenericMap GenericMap;
 
+    public readonly GenericMap GenericMap;
     public readonly IDictionary<string, FieldDefinition?> FieldMap;
     public readonly IDictionary<string, MethodDefinition> MethodMap;
 
@@ -64,11 +63,20 @@ public class TypeMixin {
             if (method.HasCustomAttributes) {
                 foreach (CustomAttribute methodAttribute in method.CustomAttributes) {
                     string attributeName = methodAttribute.AttributeType.FullName;
-                    if (attributeName == typeof(MethodMixinAttribute).FullName) {
+                    if (attributeName == typeof(MethodTailMixinAttribute).FullName) {
                         CustomAttributeArgument[] methodAttribArgs = methodAttribute.ConstructorArguments.ToArray();
-                        if (methodAttribArgs.Length != 2 || methodAttribArgs[0].Value is not string methodTargetName || methodAttribArgs[1].Value is not int priority)
-                            throw new InvalidModException($"Method is using an invalid constructor for {nameof(MethodMixinAttribute)}.", this, method);
-                        FunctionMixins.Add(MethodMixin.Resolve(method, methodTargetName, priority, this));
+                        if (methodAttribArgs.Length != 2 || methodAttribArgs[0].Value is not string methodTargetName
+                                                         || methodAttribArgs[1].Value is not int priority)
+                            throw new InvalidModException($"Method is using an invalid constructor for {nameof(MethodTailMixinAttribute)}.", this, method);
+                        FunctionMixins.Add(MethodTailMixin.Resolve(method, methodTargetName, (MixinPriority)priority, this));
+                        isSpecialMethod = true;
+                        break;
+                    } else if (attributeName == typeof(MethodHeadMixinAttribute).FullName) {
+                        CustomAttributeArgument[] methodAttribArgs = methodAttribute.ConstructorArguments.ToArray();
+                        if (methodAttribArgs.Length != 2 || methodAttribArgs[0].Value is not string methodTargetName
+                                                         || methodAttribArgs[1].Value is not int priority)
+                            throw new InvalidModException($"Method is using an invalid constructor for {nameof(MethodHeadMixinAttribute)}.", this, method);
+                        FunctionMixins.Add(MethodHeadMixin.Resolve(method, methodTargetName, (MixinPriority)priority, this));
                         isSpecialMethod = true;
                         break;
                     } else if (attributeName == typeof(MixinMethodAccessorAttribute).FullName) {
@@ -80,9 +88,10 @@ public class TypeMixin {
                         break;
                     } else if (attributeName == typeof(ConstructorMixinAttribute).FullName) {
                         CustomAttributeArgument[] methodAttribArgs = methodAttribute.ConstructorArguments.ToArray();
-                        if (methodAttribArgs.Length != 1 || methodAttribArgs[0].Value is not int priority)
+                        if (methodAttribArgs.Length != 2 || methodAttribArgs[0].Value is not int position
+                                                         || methodAttribArgs[1].Value is not int priority)
                             throw new InvalidModException($"Method is using an invalid constructor for {nameof(ConstructorMixinAttribute)}.", this, method);
-                        FunctionMixins.Add(ConstructorMixin.Resolve(method, priority, this));
+                        FunctionMixins.Add(ConstructorMixin.Resolve(method, (MixinPriority)priority, (MixinPosition)position, this));
                         isSpecialMethod = true;
                         break;
                     }

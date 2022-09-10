@@ -3,16 +3,12 @@ using System.Linq;
 using Mixolydian.Common;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using GenericMap = System.Collections.Generic.IDictionary<string, Mono.Cecil.GenericParameter>;
 
 namespace Mixolydian;
 
-/// <summary>
-/// A method mixin that isn't a constructor or other spcial type of method.
-/// </summary>
-internal class MethodMixin : FunctionMixin {
+internal class MethodHeadMixin : FunctionMixin {
 
-    public static MethodMixin Resolve(MethodDefinition source, string targetName, int priority, TypeMixin type) {
+    public static MethodHeadMixin Resolve(MethodDefinition source, string targetName, MixinPriority priority, TypeMixin type) {
 
         // Find the expected return type by extracting it from MixinReturn
         TypeReference? expectedReturn; // If null, expected return is `void`
@@ -51,17 +47,25 @@ internal class MethodMixin : FunctionMixin {
         if (target == null || methodGenericMap == null)
             throw new InvalidModException($"Could not find mixin target '{targetName}' with the same parameters.", type, source);
 
-        return new MethodMixin(methodGenericMap, type, source, target, priority);
+        return new MethodHeadMixin(methodGenericMap, type, source, target, priority);
     }
 
-    private MethodMixin(GenericMap genericMap, TypeMixin type, MethodDefinition source, MethodDefinition target, int priority)
-        : base(type, source, target, genericMap, priority) { }
+    private Instruction? _injectionPoint;
 
-    protected override IEnumerable<Instruction> ConvertInstructions(VariableDefinition[] localVariables, Instruction? injectionPoint) {
-        IEnumerator<Instruction> convertedInstructions = base.ConvertInstructions(localVariables, injectionPoint).GetEnumerator();
+    private MethodHeadMixin(GenericMap genericMap, TypeMixin type, MethodDefinition source, MethodDefinition target, MixinPriority priority)
+        : base(type, source, target, genericMap, priority) {
+    }
+
+    protected override IEnumerable<Instruction?> EnumerateInjectionPoints() {
+        yield return _injectionPoint = Target.Body.Instructions[0];
+    }
+
+    protected override IEnumerable<Instruction> ConvertInstructions(VariableDefinition[] localVariables) {
+        IEnumerator<Instruction> convertedInstructions = base.ConvertInstructions(localVariables).GetEnumerator();
 
         while (convertedInstructions.MoveNext()) {
             Instruction inst = convertedInstructions.Current;
+            CILUtils.GetArgumentInstructionInfo(inst);
 
             if (inst.OpCode == OpCodes.Call && inst.Operand is MethodReference callOperand
                 && callOperand.ReturnType.FullName.StartsWith(typeof(MixinReturn).FullName!)
@@ -79,12 +83,12 @@ internal class MethodMixin : FunctionMixin {
                 switch (callOperand.Name) {
                     case nameof(MixinReturn.Continue):
                         // Jump to the end of the mixin
-                        inst.OpCode = OpCodes.Br;
-                        inst.Operand = injectionPoint;
+                        if (_injectionPoint != null) {
+                            inst.OpCode = OpCodes.Br;
+                            inst.Operand = _injectionPoint;
+                        }
                         break;
                     case nameof(MixinReturn.Return):
-                        inst.OpCode = OpCodes.Ret;
-                        inst.Operand = null;
                         break;
                     default:
                         throw new InvalidModException($"Unknown {nameof(MixinReturn)} method {callOperand.Name}.", Type, Source);
