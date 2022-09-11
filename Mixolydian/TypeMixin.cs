@@ -47,6 +47,9 @@ public class TypeMixin {
             GenericMap = new Dictionary<string, GenericParameter>(genericCount);
             for (int i = 0; i < genericCount; i++)
                 GenericMap[Source.GenericParameters[i].FullName] = Target.GenericParameters[i];
+            foreach (GenericParameter generic in Source.GenericParameters)
+                if (!CILUtils.CompareGenericParameterConstraints(generic, GenericMap[generic.FullName], this, null, null))
+                    throw new InvalidModException($"Mixin's generic parameter constraints don't match the target.", this, null);
         } else {
             GenericMap = ImmutableDictionary<string, GenericParameter>.Empty;
         }

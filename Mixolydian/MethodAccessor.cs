@@ -10,7 +10,7 @@ public class MethodAccessor {
         foreach (MethodDefinition potentialTarget in type.Target.Methods) {
             if (potentialTarget.Name != targetName) continue;
             if (potentialTarget.IsStatic != source.IsStatic) continue;
-            GenericMap? targetGenericMap = CILUtils.TryCreateGenericMap(source, potentialTarget);
+            GenericMap? targetGenericMap = CILUtils.TryCreateGenericMap(source, potentialTarget, type);
             if (targetGenericMap == null) continue;
             if (!CILUtils.CompareMethodArguments(source, potentialTarget, type, targetGenericMap, source))
                 continue;

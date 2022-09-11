@@ -9,12 +9,13 @@ using Mono.Cecil.Cil;
 
 internal static class CILUtils {
     /// <summary>
-    /// Creates a generic map from source to target, if they have the same number of generic parameters.
+    /// Creates a generic map from source to target, if they have the same number of generic parameters and
+    ///   the generic constraints match.
     /// </summary>
     /// <param name="source"></param>
     /// <param name="target"></param>
     /// <returns>The map, null if the methods do not have the same number of generic parameters.</returns>
-    public static GenericMap? TryCreateGenericMap(MethodDefinition source, MethodDefinition target) {
+    public static GenericMap? TryCreateGenericMap(MethodDefinition source, MethodDefinition target, TypeMixin type) {
         int genericParamCount = source.GenericParameters.Count;
         if (target.GenericParameters.Count != genericParamCount)
             return null;
@@ -23,6 +24,9 @@ internal static class CILUtils {
         GenericMap methodGenericMap = new Dictionary<string, GenericParameter>();
         for (int i = 0; i < genericParamCount; i++)
             methodGenericMap[source.GenericParameters[i].FullName] = target.GenericParameters[i];
+        foreach (GenericParameter sourceParam in source.GenericParameters)
+            if (!CompareGenericParameterConstraints(sourceParam, methodGenericMap[sourceParam.FullName], type, methodGenericMap, source))
+                return null;
         return methodGenericMap;
     }
 
@@ -374,7 +378,6 @@ internal static class CILUtils {
     /// Compares two methods generics and arguments. 
     /// </summary>
     /// <returns>True if the methods generics and arguments match, false otherwise.<returns>
-    /// TODO Compare generic parameter constraints?
     public static bool CompareMethodArguments(MethodDefinition a, MethodDefinition b, TypeMixin type, GenericMap? methodGenericMap = null, MethodDefinition? source = null) {
         int paramCount = a.Parameters.Count;
         if (b.Parameters.Count != paramCount)
@@ -386,7 +389,7 @@ internal static class CILUtils {
         return true;
     }
 
-    public static bool CompareTypes(TypeReference a, TypeReference b, TypeMixin type, GenericMap? methodGenericMap = null, MethodDefinition? source = null) {
+    public static bool CompareTypes(TypeReference a, TypeReference b, TypeMixin type, GenericMap? methodGenericMap = null, MemberReference? source = null) {
         if (a.IsGenericParameter && a is GenericParameter aGenericParam) {
             if (!b.IsGenericParameter)
                 return false;
@@ -418,6 +421,30 @@ internal static class CILUtils {
             return true;
         }
         return a.FullName == b.FullName;
+    }
+
+    public static bool CompareGenericParameterConstraints(GenericParameter source, GenericParameter target, TypeMixin type, GenericMap? methodGenerics, MemberReference? from) {
+        if (source.Constraints.Count != target.Constraints.Count) return false;
+
+        if (source.HasDefaultConstructorConstraint != target.HasDefaultConstructorConstraint) return false;
+        if (source.HasNotNullableValueTypeConstraint != target.HasNotNullableValueTypeConstraint) return false;
+        if (source.HasReferenceTypeConstraint != target.HasReferenceTypeConstraint) return false;
+        if (source.Constraints.Count == 0) return true;
+
+        // TODO Investigate comparing attributes for the T : unmanaged constraint.
+        List<GenericParameterConstraint> targetConstaints = target.Constraints.ToList();
+        foreach (GenericParameterConstraint sourceConstaint in source.Constraints) {
+            GenericParameterConstraint? match = null;
+            foreach (GenericParameterConstraint targetConstraint in targetConstaints) {
+                if (CompareTypes(sourceConstaint.ConstraintType, targetConstraint.ConstraintType, type, methodGenerics, from)) {
+                    match = targetConstraint;
+                    break;
+                }
+            }
+            if (match == null) return false;
+            targetConstaints.Remove(match);
+        }
+        return true;
     }
 
     public static readonly ImmutableDictionary<string, string[]> OperatorFunctionNames = new KeyValuePair<string, string[]>[] {

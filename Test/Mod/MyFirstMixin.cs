@@ -3,8 +3,8 @@ using Mixolydian.Common;
 
 namespace Mod;
 
-[TypeMixin(typeof(GameProgram.TestGenericBox<object>))]
-public class TestGenerixBoxMixin<T> {
+[TypeMixin(typeof(GameProgram.TestGenericBox<int>))]
+public class TestGenerixBoxMixin<T> where T : struct {
 
     [MixinThis]
     public readonly GameProgram.TestGenericBox<T> @this;

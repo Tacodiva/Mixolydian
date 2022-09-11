@@ -33,7 +33,7 @@ internal class MethodHeadMixin : FunctionMixin {
         foreach (MethodDefinition possibleTarget in type.Target.Methods) {
             if (!targetNames.Contains(possibleTarget.Name)) continue;
             if (possibleTarget.IsStatic != source.IsStatic) continue;
-            GenericMap? possibleMethodGenericMap = CILUtils.TryCreateGenericMap(source, possibleTarget);
+            GenericMap? possibleMethodGenericMap = CILUtils.TryCreateGenericMap(source, possibleTarget, type);
             if (possibleMethodGenericMap == null) continue;
             if (CILUtils.CompareMethodArguments(source, possibleTarget, type, possibleMethodGenericMap, source)) {
                 if (expectedReturn != null) {

@@ -61,7 +61,7 @@ public class GameProgram {
         return "Hello";
     }
 
-    public sealed class TestGenericBox<TObject> {
+    public sealed class TestGenericBox<TObject> where TObject : struct {
 
         public TObject Value;
 
