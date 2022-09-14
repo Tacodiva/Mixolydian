@@ -37,9 +37,15 @@ public class TestGenerixBoxMixin<T> where T : struct {
     }
 }
 
+public static class MixinExtensions {
+
+    [MixinExtension(typeof(MyFirstMixin), "Test")]
+    public static extern void TestExt(this GameProgram @this, string arg);
+
+}
+
 [TypeMixin(typeof(GameProgram))]
 public class MyFirstMixin {
-
     [MixinThis]
     public readonly GameProgram @this;
 
@@ -138,6 +144,12 @@ public class MyFirstMixin {
     [ConstructorMixin(MixinPosition.TAIL)]
     public static void TestStaticConstructorMixinII() {
         Console.WriteLine("Static constructor tail O_O");
+    }
+
+    [MethodHeadMixin("Main")]
+    public static MixinReturn Main(string[] args) {
+        MyMod.Run();
+        return MixinReturn.Continue();
     }
 
 }

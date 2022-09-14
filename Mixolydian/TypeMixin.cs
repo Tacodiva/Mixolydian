@@ -38,6 +38,8 @@ public class TypeMixin {
         if (Source.BaseType.FullName != typeof(object).FullName)
             throw new InvalidModException($"Mixin must not extend another class!", this);
 
+        if (source.HasNestedTypes)
+            throw new InvalidModException($"Mixins cannot have nested type!", this, source.NestedTypes[0]);
 
         int genericCount = Source.GenericParameters.Count;
         if (Target.GenericParameters.Count != genericCount)

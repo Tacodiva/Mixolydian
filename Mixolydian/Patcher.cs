@@ -63,12 +63,14 @@ public class MixolydianPatcher {
         // Parse the mods
         List<Mod> mods = new(modAssemblies.Count);
         foreach (AssemblyInfo modAssembly in modAssemblies) {
-            mods.Add(new Mod(modAssembly.Assembly, modAssembly.FileName));
+            mods.Add(new Mod(modAssembly.Assembly, modAssembly.FileName, mainAssembly.MainModule));
         }
 
         Console.WriteLine("\n===== Running Mixins =====\n");
 
         foreach (Mod mod in mods) {
+            foreach (TypeInjection typeInject in mod.TypeInjections)
+                typeInject.Inject();
             foreach (TypeMixin typeMixin in mod.TypeMixins) {
                 foreach (MethodAccessor methodAccessor in typeMixin.MethodAccessors)
                     methodAccessor.CreateDefinition();

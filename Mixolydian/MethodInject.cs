@@ -37,7 +37,7 @@ public class MethodInject {
         } else newMethodName = Source.Name;
 
         // The void return type is only temporary, we will repalce it after we have the generic parameters
-        Target = new(newMethodName, Source.Attributes, Type.Target.Module.ImportReference(typeof(void)));
+        Target = new(newMethodName, Source.Attributes, Type.Target.Module.TypeSystem.Void);
 
         // The generic map must be created before the method return type as the return type of the method 
         //  may contain generics we need to map. IE `public A Get<A>()`
